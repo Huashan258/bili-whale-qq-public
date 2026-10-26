@@ -63,7 +63,10 @@
     "test:diary": "node test/diary.mjs",
     "test:diary-auto": "node test/diary-auto.mjs",
     "test": "node scripts/test-public.mjs",
-    "test:public-release": "node test/public-release.mjs"
+    "test:public-release": "node test/public-release.mjs",
+    "voice:local": "node scripts/local-voice.mjs",
+    "test:gpt-sovits": "node test/gpt-sovits.mjs",
+    "test:local-voice-watch": "node test/local-voice-watch.mjs"
   },
   "license": "MIT"
 }

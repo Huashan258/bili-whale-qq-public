@@ -10,6 +10,8 @@ for(const a of [cfg.bili.masters,cfg.qq.groupIds,cfg.chat.admins,cfg.chat.groups
 for(const flag of [cfg.share.enabled,cfg.scroll.enabled,cfg.diary.autoEnabled,cfg.diary.publishEnabled,cfg.biliInbox.enabled,cfg.biliInbox.mentionsEnabled,cfg.vision.enabled,cfg.chat.enabled])assert.equal(flag,false)
 assert.equal(cfg.share.replyPatrolMinutes,0);assert.equal(cfg.chat.voice.instruction,'');assert.equal(cfg.chat.voice.boostDb,0)
 assert.equal(cfg.qq.wsToken,'');assert.equal(cfg.bili.cookie_file,'')
+for(const k of ['localInstallDir','localReferenceAudio','localPromptText'])assert.equal(cfg.chat.voice[k],'')
+assert.equal(cfg.chat.voice.localAutoStart,false);assert.equal(cfg.chat.voice.localGainDb,0)
 function credentials(o){for(const [k,v]of Object.entries(o??{})){if(/api.?key|token|password|sessdata|bili_jct|buvid/i.test(k)&&typeof v==='string')assert.ok(!v||v.startsWith('env:'),'Credential literal in config');if(v&&typeof v==='object')credentials(v)}}credentials(cfg)
 for(const f of ['config.json','.env','HANDOVER.md','项目总览与维护指南.md','public/assets/whale/portrait.png'])assert.equal(fs.existsSync(path.join(root,f)),false,'Private file included: '+f)
 const excluded=new Set(['.git','.data','node_modules','book','words','biaoqingbao','.idea','tmp'])

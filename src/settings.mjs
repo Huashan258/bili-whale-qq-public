@@ -46,6 +46,9 @@ export function validatePatch(patch) {
       if (f.type === 'secret' && !v.trim()) continue
     }
     if (f.type === 'select' && !f.options.some(option=>option.value === v)) fail()
+    if(key==='chat.voice.localApiUrl'){
+      try{const u=new URL(v);if(u.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(u.hostname)||u.username||u.password||u.search||u.hash||!['','/'].includes(u.pathname))fail()}catch{fail()}
+    }
     if (key === 'llm.provider' && !['deepseek','openai','workbuddy','none'].includes(v)) fail()
     if (['llm.baseUrl','qq.onebotHttp','qq.wsUrl'].includes(key)) {
       try { const u = new URL(v); if (!(key.endsWith('wsUrl') ? ['ws:','wss:'] : ['http:','https:']).includes(u.protocol)) fail() } catch { fail() }

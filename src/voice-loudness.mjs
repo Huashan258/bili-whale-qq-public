@@ -1,5 +1,5 @@
 // PCM16 WAV only: no external codec, preserve all chunks and sample timing.
-export function normalizeVoiceWav(source,{volume=100,targetDbfs=-16,boostDb=0}={}) {
+export function normalizeVoiceWav(source,{volume=100,targetDbfs=-16,boostDb=0,normalize=true}={}) {
   if(source.length<44||source.toString('ascii',0,4)!=='RIFF'||source.toString('ascii',8,12)!=='WAVE')throw Error('无效WAV')
   let format,offset,size
   for(let p=12;p+8<=source.length;) {
@@ -20,7 +20,7 @@ export function normalizeVoiceWav(source,{volume=100,targetDbfs=-16,boostDb=0}={
   for(let p=offset;p<offset+size;p+=2){const x=source.readInt16LE(p)/32768;power+=x*x;peak=Math.max(peak,Math.abs(x))}
   const rms=Math.sqrt(power/(size/2)),ceiling=10**(-1/20)
   const desired=10**(Math.max(-24,Math.min(-12,target))/20)*Math.max(0,Math.min(100,level))/100
-  const gain=desired===0?0:rms<1e-5?1:Math.min(desired/rms,10,ceiling/peak)
+  const gain=normalize?(desired===0?0:rms<1e-5?1:Math.min(desired/rms,10,ceiling/peak)):Math.max(0,Math.min(100,level))/100
   const bytes=Buffer.from(source)
   // Final downloaded WAV has a known length; make it playable by strict codecs too.
   bytes.writeUInt32LE(bytes.length-8,4);bytes.writeUInt32LE(size,offset-4)

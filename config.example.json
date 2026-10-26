@@ -102,7 +102,17 @@
       "instruction": "",
       "boostDb": 0,
       "normalizeLoudness": true,
-      "loudnessTarget": -16
+      "loudnessTarget": -16,
+      "localApiUrl": "http://127.0.0.1:9880",
+      "localInstallDir": "",
+      "localAutoStart": false,
+      "localReferenceAudio": "",
+      "localPromptText": "",
+      "localPromptLanguage": "zh",
+      "localTextLanguage": "zh",
+      "localTimeoutSec": 180,
+      "localNormalizeLoudness": false,
+      "localGainDb": 0
     }
   },
   "scroll": {

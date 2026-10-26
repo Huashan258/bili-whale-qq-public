@@ -347,7 +347,7 @@
 
     <section class="pcard wide">
       <label for="p-admins">管理员 QQ</label>
-      <input id="p-admins" type="text" placeholder="880010001, 880010004">
+      <input id="p-admins" type="text" placeholder="882000001, 882000004">
       <p class="pcard-hint">只有名单里的号，私聊会被记住（不限次数）；其他人也能聊，但不落盘、限频。</p>
     </section>
 
@@ -447,10 +447,12 @@
     <small id="settings-file"></small>
   </div>
   <section class="ocean-card" style="padding:16px;margin-bottom:16px">
-    <strong>CosyVoice音色试听</strong>
-    <p><a class="btn ghost sm" id="bailian-console-link" href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener noreferrer">打开阿里云百炼 ↗</a> <a class="btn ghost sm" href="https://help.aliyun.com/zh/model-studio/voice-cloning-and-voice-design" target="_blank" rel="noopener noreferrer">音色复刻帮助 ↗</a></p><p class="muted">使用已保存的云端语音配置生成试听，按实际用量计费；只在本页播放，不发QQ群。</p>
+    <strong>语音试听 · 百炼 / 本地GPT-SoVITS</strong>
+    <p><a class="btn ghost sm" id="bailian-console-link" href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener noreferrer">打开阿里云百炼 ↗</a> <a class="btn ghost sm" href="https://help.aliyun.com/zh/model-studio/voice-cloning-and-voice-design" target="_blank" rel="noopener noreferrer">音色复刻帮助 ↗</a></p><p class="muted">使用已保存的语音配置生成试听；本地模型不调用百炼，云端模型按实际用量计费。只在本页播放，不发QQ群。</p>
     <label>试听文本<input id="voice-preview-text" maxlength="200" value="哈哈哈，本仙今日心情不错，且听你慢慢道来。"></label>
     <button class="btn ghost sm" id="voice-preview-button" type="button">生成音色试听</button>
+    <button class="btn ghost sm" id="voice-status-button" type="button">检查语音服务</button>
+    <button class="btn ghost sm" id="voice-local-start-button" type="button">启动本地语音API</button>
     <p id="voice-preview-status" role="status"></p><audio id="voice-preview-audio" controls hidden preload="none"></audio>
   </section>
   <div id="settings-preview" hidden></div>

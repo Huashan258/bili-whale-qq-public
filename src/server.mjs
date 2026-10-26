@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import {createCosyVoice,cosyReady} from './cosyvoice.mjs'
+import {createGptSovits,localVoiceReady,localVoiceEndpoint} from './gpt-sovits.mjs'
+import {localVoiceOnline,startLocalVoice} from './local-voice-host.mjs'
 import {randomUUID} from 'node:crypto'
 import {hourlyScrollSummary} from './hourly-scroll.mjs'
 import { createDiaryService } from './diary.mjs'
@@ -168,19 +170,33 @@ function listHistory() {
 }
 
 const synthesizeVoice=createCosyVoice()
+const synthesizeLocalVoice=createGptSovits()
 let voicePreviewBusy=false
 const routes = {
-  async 'GET /api/voice/status'(){const c=cfg(),v=c.chat?.voice??{};return {provider:v.provider||'qq-native',configured:cosyReady(c),model:v.model||'cosyvoice-v3.5-flash',voiceId:v.voiceId||'',region:v.region||'beijing',volume:v.volume??50}},
+  async 'GET /api/voice/status'(){
+    const c=cfg(),v=c.chat?.voice??{},local=v.provider==='gpt-sovits';let online=null
+    if(local)online=await localVoiceOnline(c)
+    return {provider:v.provider||'qq-native',configured:local?localVoiceReady(c):cosyReady(c),online,model:local?'gpt-sovits':v.model||'cosyvoice-v3.5-flash',voiceId:local?'':v.voiceId||'',region:local?null:v.region||'beijing',volume:v.volume??50,localNormalizeLoudness:v.localNormalizeLoudness===true,localGainDb:v.localGainDb??0}
+  },
+  async 'POST /api/voice/local/start'(){return startLocalVoice(cfg())},
   async 'POST /api/voice/preview'(body){
     if(voicePreviewBusy)throw Error('已有音频试听正在生成，请稍候')
     voicePreviewBusy=true
     try{
-      const audio=await synthesizeVoice(body.text||'哈哈哈，本仙今日心情不错，且听你慢慢道来。',cfg())
+      const dsh=await dshLink.read()
+      if(dsh?.status?.running){
+        if(dsh.status.chat?.qqVoice?.senderRevision!==2)throw Error('请先重新加载DSH语音模块，使试听与实际发送使用同一条链路')
+        const r=await fetch(dsh.base+'/api/whale/voice/preview',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:body.text||'本仙在此，你有什么想说的，尽管道来。'}),signal:AbortSignal.timeout(610000)})
+        const preview=await r.json();if(!r.ok)throw Error(preview.error||'DSH语音试听失败');return preview
+      }
+      const c=cfg(),provider=c.chat?.voice?.provider||'qq-native'
+      if(provider==='qq-native')throw Error('QQ原生语音不能在本地试听，请选择CosyVoice或本地GPT-SoVITS')
+      const audio=await (provider==='gpt-sovits'?synthesizeLocalVoice:synthesizeVoice)(body.text||'本仙在此，你有什么想说的，尽管道来。',c)
       const dir=path.join(DATA,'voice-preview');fs.mkdirSync(dir,{recursive:true})
       const id=randomUUID();fs.writeFileSync(path.join(dir,id+'.wav'),audio.bytes,{flag:'wx'})
       const files=fs.readdirSync(dir).filter(f=>/^[a-f0-9-]{36}\.wav$/.test(f)).map(f=>({f,mtime:fs.statSync(path.join(dir,f)).mtimeMs})).sort((a,b)=>b.mtime-a.mtime)
       for(const entry of files.slice(5))fs.unlinkSync(path.join(dir,entry.f))
-      return {ok:true,url:'/api/voice/preview?id='+id,characters:audio.characters,bytes:audio.bytes.length,loudness:audio.loudness}
+      return {ok:true,url:'/api/voice/preview?id='+id,provider,characters:audio.characters,bytes:audio.bytes.length,loudness:audio.loudness}
     }finally{voicePreviewBusy=false}
   },
   async 'GET /api/overview'() {

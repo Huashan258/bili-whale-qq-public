@@ -29,7 +29,7 @@ export function createChatDiagnostics({file=null,now=Date.now}={}) {
     fallback(reason='empty-reply'){const r=scope.getStore();if(r){r.fallback=true;r.fallbackReason=reason}},
     searchResult(fields){const r=scope.getStore();if(r)r.search={...fields}},
     selectionResult(fields){const r=scope.getStore();if(r)r.selection={...fields}},
-    voiceResult(fields){const r=scope.getStore();if(r)r.voice={...r.voice,format:fields.format,reason:fields.reason,...(fields.provider?{provider:fields.provider}:{}),...(Number.isFinite(fields.characters)?{characters:fields.characters}:{})}},
+    voiceResult(fields){const r=scope.getStore();if(r){r.voice={...r.voice,format:fields.format,reason:fields.reason,...(fields.provider?{provider:fields.provider}:{})};for(const k of ['characters','senderRevision','audioBytes','outputGainDb','actualGainDb','peak'])if(Number.isFinite(fields[k]))r.voice[k]=fields[k]}},
     partsResult({parts,planned,complete}){const r=scope.getStore();if(r)r.replyParts={sent:parts,planned,complete}},
     stickerResult(fields){const r=scope.getStore();if(r)r.sticker={...r.sticker,...fields}},
     modelResult(fields){const r=scope.getStore();if(r)r.modelResult={...fields}},

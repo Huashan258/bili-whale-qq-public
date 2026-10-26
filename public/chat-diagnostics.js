@@ -17,7 +17,7 @@
     const body=$('#chat-traces');body.replaceChildren()
     for(const r of rows) {
       const tr=document.createElement('tr');tr.dataset.stage=r.stage
-      const voiceLabel=r.voice?.format==='voice'?'语音 · ':r.voice?'语音回退文字 · ':''
+      const voiceLabel=r.voice?.format==='voice'?`语音${Number.isFinite(r.voice.actualGainDb)?`（实际增益 ${r.voice.actualGainDb.toFixed(1)}dB）`:''} · `:r.voice?'语音回退文字 · ':''
       const searchLabel=r.search?.requiredVideos?`B站资料已读 ${r.search.videosRead??0}/${r.search.requiredVideos} · ${r.search.waiting?'等待下一读取时段':r.search.complete?'读取完成':'读取中或未完成'} · `:r.search?`${r.search.source==='bili'?'B站检索':r.search.source==='page'?'网页读取':r.search.source==='research'?'多源交叉检索':'网页检索'}${r.search.ok?'成功':'失败'} · ${r.search.count??0}条${r.search.cached?'（缓存）':''} · 正文已读${r.search.pagesRead??0}页/失败${r.search.pagesFailed??0}页 · `:''
       const partsLabel=r.replyParts?`文字 ${r.replyParts.sent}/${r.replyParts.planned}条 · `:''
       const stickerLabels={'repeat-cooldown':'同图重复间隔未到','chance-missed':'未抽中','cooldown':'冷却中','disabled':'已关闭','empty-library':'无启用图片','no-match':'未选到合适图片','invalid-selection':'选图返回无效编号','selection-error':'选图失败或超时','selected':'已选好','sent':'已发出','send-unconfirmed':'发送未确认','cancelled':'已取消','disabled-during-selection':'选图期间停用'}

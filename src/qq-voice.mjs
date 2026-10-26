@@ -1,5 +1,6 @@
 import { sendAIVoice,sendAudioRecord } from './qq.mjs'
 import {createCosyVoice} from './cosyvoice.mjs'
+import {createGptSovits} from './gpt-sovits.mjs'
 import {sendWhenAvailable} from './chat-diagnostics.mjs'
 
 export function voiceEligible(text,settings={},random=Math.random) {
@@ -13,12 +14,20 @@ export function voiceEligible(text,settings={},random=Math.random) {
   return chance>0 && random()<chance
 }
 
-export function createQQVoiceSender({send=sendAIVoice,synthesize=createCosyVoice(),sendAudio=sendAudioRecord,rateSleep}={}) {
-  return async function voice(text,groupId,cfg,{signal,replyToUserId='',onSynthesis=()=>{}}={}) {
+export function createQQVoiceSender({send=sendAIVoice,synthesize=createCosyVoice(),synthesizeLocal=createGptSovits(),sendAudio=sendAudioRecord,rateSleep}={}) {
+  const preview=async(text,cfg,{signal}={})=>{
+    const provider=cfg.chat?.voice?.provider
+    if(!['cosyvoice','gpt-sovits'].includes(provider))throw Object.assign(Error('QQ原生音色不支持本地试听'),{voiceNotSent:true})
+    const audio=await (provider==='gpt-sovits'?synthesizeLocal:synthesize)(text,cfg,{signal})
+    return {...audio,provider,senderRevision:2}
+  }
+  const voice=async function(text,groupId,cfg,{signal,replyToUserId='',onSynthesis=()=>{}}={}) {
     signal?.throwIfAborted()
-    if(cfg.chat?.voice?.provider==='cosyvoice'){
-      const audio=await synthesize(text,cfg,{signal})
-      onSynthesis({provider:'cosyvoice',characters:audio.characters})
+    const provider=cfg.chat?.voice?.provider
+    if(['cosyvoice','gpt-sovits'].includes(provider)){
+      const audio=await preview(text,cfg,{signal})
+      const s=audio.loudness
+      onSynthesis({provider,characters:audio.characters,senderRevision:2,audioBytes:audio.bytes.length,outputGainDb:s?.boostDb??0,actualGainDb:s?.rmsBefore>0?20*Math.log10(s.rmsAfter/s.rmsBefore):0,peak:s?.peakAfter})
       signal?.throwIfAborted()
       return await sendWhenAvailable(()=>sendAudio(cfg,groupId,audio.bytes,{signal,replyToUserId}),{signal,sleep:rateSleep})
     }
@@ -26,4 +35,5 @@ export function createQQVoiceSender({send=sendAIVoice,synthesize=createCosyVoice
     // 原生AI语音接口同时合成并发布；即使服务端报错，也可能已经发布。
     return await send(cfg,groupId,character,text,{signal,replyToUserId})
   }
+  return Object.assign(voice,{preview,revision:2})
 }

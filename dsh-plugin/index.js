@@ -42,9 +42,10 @@
  *   本插件的做法是把所有自己的入口都包住，让宿主那层永远收不到我们的异常。
  * ============================================================================
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync,readdirSync,unlinkSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import {randomUUID} from 'node:crypto'
 import { loadHostDeps } from './lib/hostdeps.mjs'
 import { UI_FIELDS, readUiCfg, readUiCfgRaw, uiFileOf, writeUiCfg } from './lib/uicfg.mjs'
 import { createWebUiHost } from './lib/webui-host.mjs'
@@ -488,6 +489,7 @@ export function apply(ctx, config) {
     timers: new Set(),        // setTimeout / setInterval 都放这儿（Node 里两者同一个 Timeout 对象）
     chat: null,               // createChat 的返回值（stop() 里关 ws）
     snowLumaWatch:null,
+    localVoiceWatch:null,
     lockFile: '',             // 抢到的锁文件路径（放锁要用）
     releaseLock: null,        // src/lock.mjs 的 releaseLock（延迟 import，先留空）
     gen: 0,                   // 启动代号：停一次 +1，在飞的 bootstrap 靠它对不上就自己退场
@@ -518,6 +520,8 @@ export function apply(ctx, config) {
     rt.timers.clear()
     rt.snowLumaWatch?.stop()
     rt.snowLumaWatch=null
+    rt.localVoiceWatch?.stop()
+    rt.localVoiceWatch=null
     try { rt.chat?.stop() } catch (e) { log(`关群聊失败（忽略）：${e?.message ?? e}`) }
     rt.chat = null
     if (rt.lockFile && rt.releaseLock) {
@@ -701,8 +705,8 @@ export function apply(ctx, config) {
           const path = new URL(req.url, 'http://127.0.0.1').pathname
 
           if (req.method === 'GET' && path === '/api/whale/mascot') {
-            const mascot=readFileSync(join(PROJECT_ROOT,'public','assets','whale','portrait.png'))
-            res.writeHead(200, {'content-type':'image/png','cache-control':'public, max-age=86400'})
+            const mascot=readFileSync(join(PROJECT_ROOT,'public','assets','whale','portrait.svg'))
+            res.writeHead(200, {'content-type':'image/svg+xml','cache-control':'public, max-age=86400'})
             return res.end(mascot)
           }
 
@@ -713,6 +717,21 @@ export function apply(ctx, config) {
               ui: readUiCfgRaw(UI_FILE),  // 设置页填过的（含空值，好让界面回显）
               fields: UI_FIELDS,
             })
+          }
+
+          if(req.method==='POST'&&path==='/api/whale/voice/preview'){
+            if(rt.voicePreviewBusy)return sendJson(res,409,{error:'DSH已有语音试听正在生成'})
+            if(!rt.chat?.previewVoice)return sendJson(res,503,{error:'DSH语音通道尚未就绪'})
+            rt.voicePreviewBusy=true
+            try{
+              let body;try{body=JSON.parse(await readBody(req))}catch{throw Error('试听请求格式错误')}
+              rt.refreshVoiceConfig?.()
+              const audio=await rt.chat.previewVoice(body.text),id=randomUUID(),dir=join(dataDir,'voice-preview')
+              mkdirSync(dir,{recursive:true});writeFileSync(join(dir,id+'.wav'),audio.bytes,{flag:'wx'})
+              const old=readdirSync(dir).filter(f=>/^[a-f0-9-]{36}\.wav$/.test(f)).map(f=>({f,time:statSync(join(dir,f)).mtimeMs})).sort((a,b)=>b.time-a.time)
+              for(const entry of old.slice(5))unlinkSync(join(dir,entry.f))
+              return sendJson(res,200,{ok:true,url:'/api/voice/preview?id='+id,provider:audio.provider,characters:audio.characters,bytes:audio.bytes.length,loudness:audio.loudness??null,senderRevision:audio.senderRevision,source:'dsh'})
+            }finally{rt.voicePreviewBusy=false}
           }
 
           if (req.method === 'POST' && path === '/api/whale/config') {
@@ -761,6 +780,7 @@ export function apply(ctx, config) {
               chat: rt.chat?.status?.() ?? null,
               webUi:webUiHost.status(),
               snowLuma:rt.snowLumaWatch?.status() ?? null,
+              localVoice:rt.localVoiceWatch?.status() ?? null,
               patrol:rt.patrol ?? null,
               privateInbox:rt.privateInbox ?? null,
               mentions:rt.mentions ?? null,
@@ -908,6 +928,14 @@ async function bootstrap(cfg, env) {
     }
   }
   refreshCfg()
+  rt.refreshVoiceConfig=refreshCfg
+  try{
+    const {createLocalVoiceWatchdog}=await import(srcUrl('local-voice-watch.mjs'))
+    if(!alive())return
+    const watcher=createLocalVoiceWatchdog({config:()=>biz,logger:log})
+    rt.localVoiceWatch=watcher
+    watcher.start()?.catch(()=>{})
+  }catch{log('本地语音：启动监督器未加载，请检查模块')}
 
   /* ⑤·补 config.json 热加载 —— WebUI 改完设定能不能立刻生效，全靠这一段。
    *
@@ -1234,3 +1262,6 @@ export function version() {
 // cosyLoudnessRevision20261026: normalized PCM and expressive cloud speech
 // cosyBoostRevision20261026: extra gain with soft limiting
 // voiceStickerRevision20261026: shared sticker delivery after confirmed voice
+// localSovitsRevision20261026: local synthesis and shared record/sticker delivery
+// localGainRevision20261026: independent local five dB gain
+// voiceBootRevision20261027: preload GPT-SoVITS and share actual voice pipeline preview

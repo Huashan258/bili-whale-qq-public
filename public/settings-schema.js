@@ -55,8 +55,18 @@ b('chat','chat.learnedStyle.zhugeEnabled','学习诸葛亮的遣词造句与省�
 b('chat','chat.splitReplies','QQ长回复分条发送',true,'群聊和私聊按完整句意分成最多三条文字，间隔约0.8秒；短答、代码和表格保持整条。文字发送完后可按语境另发一个已有表情包。每条分别计入普通60条/分钟，管理员豁免。')
 n('chat','chat.splitReplyChars','QQ回复开始分条的字数',90,40,500,'达到此长度才尝试按句末或长句分句边界拆开；找不到自然断点时保持整条，不强截句子。')
 b('chat','chat.voice.enabled','群聊短回复使用语音',false,'支持QQ原生音色或外部CosyVoice自定义音色。仅群聊；长文、令咒、检索结果和错误提示使用文字。语音成功后按现有表情库设置选图发送，遵守同图间隔；语音失败或回执不明时不重发、不补文字或表情。')
-add('chat','chat.voice.provider','语音提供方','select','qq-native',undefined,undefined,'CosyVoice在云端合成，QQ仅发送音频；原生模式沿用QQ音色。')
-fields.at(-1).options=[{value:'qq-native',label:'QQ原生语音'},{value:'cosyvoice',label:'百炼CosyVoice云端语音'}]
+add('chat','chat.voice.provider','语音提供方','select','qq-native',undefined,undefined,'可选择QQ原生、百炼云端或本地GPT-SoVITS。自定义合成后由QQ发送音频，不重复发布原生语音。')
+fields.at(-1).options=[{value:'qq-native',label:'QQ原生语音'},{value:'cosyvoice',label:'百炼CosyVoice云端语音'},{value:'gpt-sovits',label:'本地GPT-SoVITS'}]
+t('chat','chat.voice.localApiUrl','GPT-SoVITS API地址','http://127.0.0.1:9880','仅本机HTTP地址；先启动api_v2.py，再生成试听。')
+t('chat','chat.voice.localInstallDir','GPT-SoVITS整合包目录','','含runtime/python.exe及api_v2.py的目录；首次加载需要一些时间。')
+b('chat','chat.voice.localAutoStart','DSH启动时自动启动本地API',false,'DSH运行后立即预加载；离线后监督恢复，合成时也会兜底启动。仅本地提供方生效，不停止已有模型服务。')
+t('chat','chat.voice.localReferenceAudio','GPT-SoVITS参考音频路径','','模型API所在机器可读取的WAV绝对路径，推荐3至10秒；与下面的文字对应。')
+t('chat','chat.voice.localPromptText','GPT-SoVITS参考音频原文','','须与参考音频的实际内容一致，不是情感指令。')
+t('chat','chat.voice.localPromptLanguage','GPT-SoVITS参考语言','zh','zh中文、en英文、ja日文；根据参考音频设置。')
+t('chat','chat.voice.localTextLanguage','GPT-SoVITS合成语言','zh','zh中文、auto自动中英混合等；取决于已加载模型。')
+n('chat','chat.voice.localTimeoutSec','GPT-SoVITS排队与合成超时（秒）',180,10,600,'GPU单并发，WebUI试听与QQ共享本机推理锁；超时前尚未发送可回文字。')
+b('chat','chat.voice.localNormalizeLoudness','本地语音也启用响度处理',false,'默认关闭，保留模型原始音频；开启后沿用音量、目标响度和额外增益。不会添加情绪或改变语速。')
+n('chat','chat.voice.localGainDb','本地语音音量增益（分贝）',0,0,20,'独立给本地输出加音量，无需开启目标响度归一化；峰值软限幅防削波。不添加情绪或改变语速，0保留原音量。')
 secret('chat','chat.voice.apiKey','CosyVoice API Key')
 add('chat','chat.voice.region','CosyVoice地域','select','beijing',undefined,undefined,'密钥、工作空间、音色必须在同一地域。')
 fields.at(-1).options=[{value:'beijing',label:'华北2（北京）'},{value:'singapore',label:'新加坡'}]

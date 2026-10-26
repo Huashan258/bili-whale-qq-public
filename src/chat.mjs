@@ -1300,6 +1300,10 @@ export function createChat(cfg, {
   }
 
   return {
+    async previewVoice(text){
+      if(stopped||typeof rawSendVoice.preview!=='function')throw Error('DSH实际语音模块尚未就绪，请重载插件')
+      return rawSendVoice.preview(text,cfg,{signal:lifetime.signal})
+    },
     selfId: (id) => { selfId = String(id) },
     handleEvent,
     get ws(){return currentWs},
@@ -1348,7 +1352,7 @@ export function createChat(cfg, {
         qqStickers:{version:4,repeatLimit:true,explicitRequests:true,diagnostics:true,source:'biaoqingbao',count:stickerCount,maxBytes:null,maxItems:null},
         personaPolicy:{version:1,enabled:isQinge(c),selfTitle:isQinge(c)?'本仙':null,adminRelationshipByUid:true,fallbackSelfTitle:true},
         bookMemory:{version:3,publicReferences:true,mode:'dimensions-articles-fragments',personaSeparate:true,emotionalExpression:true,expressionRoutingVersion:3,inquiryDimensions:true,expressionFragments:2,expressionChars:450,expressionCooldownSeconds:180,maxFragments:3,maxCharsPerFragment:700,automaticIndexing:false},
-        qqVoice:{version:7,stickerAfterVoice:true,boostDb:c.voice?.boostDb??0,normalizeLoudness:c.voice?.normalizeLoudness!==false,loudnessTarget:c.voice?.loudnessTarget??-16,volume:c.voice?.volume??50,provider:c.voice?.provider||'qq-native',model:c.voice?.provider==='cosyvoice'?(c.voice?.model||'cosyvoice-v3.5-flash'):null,hasVoiceId:Boolean(c.voice?.voiceId),enabled:c.voice?.enabled===true,maxChars:c.voice?.maxChars??80,chance:c.voice?.chance??.35,character:c.voice?.character||'lucy-voice-xueling',groupOnly:true},
+        qqVoice:{version:10,senderRevision:rawSendVoice.revision??0,localGainDb:c.voice?.localGainDb??0,localVoice:true,localConfigured:Boolean(c.voice?.localReferenceAudio&&c.voice?.localPromptText),stickerAfterVoice:true,boostDb:c.voice?.boostDb??0,normalizeLoudness:c.voice?.normalizeLoudness!==false,loudnessTarget:c.voice?.loudnessTarget??-16,volume:c.voice?.volume??50,provider:c.voice?.provider||'qq-native',model:c.voice?.provider==='gpt-sovits'?'gpt-sovits':c.voice?.provider==='cosyvoice'?(c.voice?.model||'cosyvoice-v3.5-flash'):null,hasVoiceId:Boolean(c.voice?.voiceId),enabled:c.voice?.enabled===true,maxChars:c.voice?.maxChars??80,chance:c.voice?.chance??.35,character:c.voice?.character||'lucy-voice-xueling',groupOnly:true},
         qqVision:{version:2,enabled:cfg.vision?.enabled!==false,model:cfg.vision?.model|| (cfg.llm?.provider==='deepseek'?'deepseek-flash':cfg.llm?.model),maxImages:cfg.vision?.maxImages??3},
         search:{enabled:c.search?.enabled!==false,version:6,ordinaryWikiQuestions:true,automaticCommands:true,preferredSource:'game-wiki',priorityWikis:c.search?.priorityWikis??['fgo.wiki','prts.wiki','wiki.biligame.com/sr','wiki.biligame.com/ys'],crossCheckAllSources:c.search?.crossCheck!==false,fallbackOrder:['bili','web','youtube'],engines:c.search?.engines??['bing','duckduckgo','brave'],youtube:c.search?.youtube!==false,answerSourceURLs:false,freshCacheMinutes:c.search?.freshCacheMinutes??2,minVideos:5,commandReadLimits:false,bili:true,web:true,pageRead:true,maxPages:10,cacheMinutes:10},
         queuedMessages,
