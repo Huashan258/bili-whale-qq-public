@@ -1,0 +1,25 @@
+.settings-view { flex:1; min-height:0; overflow:auto; padding:24px clamp(16px,4vw,64px); }
+.settings-heading { display:flex; justify-content:space-between; gap:16px; align-items:center; flex-wrap:wrap; }
+.settings-heading h1 { margin:0; font-size:24px; }
+.settings-heading p { margin:4px 0; color:var(--ink-2); }
+.settings-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.settings-info { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 16px; margin:16px 0; }
+.settings-info p { margin:4px 0; overflow-wrap:anywhere; }
+#settings-message { color:var(--ok); } #settings-message.error { color:var(--danger); }
+.settings-body { display:grid; grid-template-columns:180px minmax(0,1fr); gap:24px; align-items:start; }
+.settings-nav { position:sticky; top:0; display:flex; flex-direction:column; gap:4px; }
+.settings-nav input { width:100%; padding:10px; border:1px solid var(--line); border-radius:7px; margin-bottom:8px; background:var(--card); }
+#settings-categories { display:flex; flex-direction:column; gap:4px; }
+#settings-categories button { text-align:left; padding:10px 14px; background:transparent; border:0; border-radius:7px; }
+#settings-categories button.active { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+#settings-section-title { margin:0 0 12px; font-size:18px; }
+#settings-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.setting-card { display:flex; flex-direction:column; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+.setting-card:has(textarea[rows="8"]) { grid-column:1 / -1; }
+.setting-card label { font-weight:600; font-size:14px; }
+.setting-card code,.setting-card small { color:var(--ink-3); overflow-wrap:anywhere; }
+.setting-card input:not([type=checkbox]),.setting-card textarea,.setting-card select { width:100%; border:1px solid var(--line-2); border-radius:6px; padding:9px 10px; background:var(--bg); }
+.setting-card input[type=checkbox] { align-self:start; width:20px; height:20px; accent-color:var(--accent); }
+.setting-card textarea { resize:vertical; line-height:1.7; }
+#settings-preview { padding:16px; margin:12px 0; border:1px solid var(--accent); border-radius:8px; background:var(--accent-soft); white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; }
+@media(max-width:760px) { .settings-body { grid-template-columns:1fr; } .settings-nav { position:static; } #settings-categories { flex-direction:row; flex-wrap:wrap; } #settings-fields { grid-template-columns:1fr; } .meters .meter { display:none; } .brand-sub { display:none; } }

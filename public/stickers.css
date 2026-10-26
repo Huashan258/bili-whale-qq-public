@@ -1,0 +1,14 @@
+.sticker-library{margin-bottom:28px;padding:24px}
+.sticker-controls{display:flex;align-items:end;gap:14px;flex-wrap:wrap;margin:18px 0}
+.sticker-controls label{display:flex;flex-direction:column;gap:7px;font-size:13px;flex:1;min-width:150px}
+.sticker-controls label:first-child{flex:1.4}
+.sticker-controls .sticker-description{flex:2;min-width:240px}
+.sticker-library input:not([type=checkbox]),.sticker-library textarea{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line);border-radius:10px;color:var(--ink);background:var(--card);font:inherit}
+.sticker-library input[type=checkbox]{width:auto;align-self:start;accent-color:var(--accent)}
+.sticker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.sticker-item{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
+.sticker-item img{height:145px;width:100%;object-fit:contain;border-radius:10px;background:rgba(128,160,180,.08)}
+.sticker-actions{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.sticker-item label{font-size:13px}
+#stickers-status{font-size:13px;overflow-wrap:anywhere}
+@media(max-width:600px){.sticker-library{padding:15px}.sticker-controls{align-items:stretch;flex-direction:column}.sticker-controls label{min-width:0;width:100%}.sticker-controls .sticker-description{min-width:0}.sticker-grid{grid-template-columns:1fr}}

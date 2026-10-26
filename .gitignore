@@ -1,0 +1,25 @@
+config.json
+config.json.*
+.data/
+node_modules/
+*.log
+.idea/
+.vscode/
+tmp/
+*.tmp
+__pycache__/
+*.py[cod]
+*.zip
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+cookies*.txt
+cookies*.json
+
+# Runtime content is migrated separately; git updates must not replace it.
+book/
+words/
+biaoqingbao/

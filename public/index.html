@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>鲸屿 · 养鱼台</title>
+<link rel="stylesheet" href="/style.css?v=17">
+<link rel="stylesheet" href="/settings.css">
+<link rel="stylesheet" href="/ocean.css?v=2">
+<link rel="stylesheet" href="/stickers.css">
+<link rel="icon" href="/assets/whale/portrait.svg">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img class="brand-avatar" src="/assets/whale/portrait.svg" alt="鲸鱼助手">
+    <span class="brand-name">鲸屿 <small>养鱼台</small></span>
+    <span class="brand-sub">WHALE WORKSPACE</span>
+  </div>
+
+  <nav class="viewswitch" id="viewswitch">
+    <button data-view="overview" class="active">总览</button>
+    <button data-view="review">视频工作台</button>
+    <button data-view="chat">群聊</button>
+    <button data-view="persona">人设</button>
+    <button data-view="settings">完整设置</button>
+  </nav>
+
+  <div class="meters">
+    <button class="icon-btn theme-toggle" id="theme-toggle" aria-label="切换明暗主题" title="切换明暗主题">◐</button>
+    <div class="meter" id="meter-quota" title="今日群分享额度">
+      <span class="meter-k">额度</span>
+      <span class="meter-v"><b id="quota-used">0</b><i>/</i><span id="quota-max">3</span></span>
+    </div>
+    <div class="meter" id="meter-model" title="当前写作模型">
+      <span class="meter-k">模型</span>
+      <span class="meter-v" id="model-name">未配置</span>
+    </div>
+    <div class="meter" id="meter-qq" title="SnowLuma 是否在线">
+      <span class="dot" id="qq-dot"></span>
+      <span class="meter-v" id="qq-state">未检测</span>
+    </div>
+    <button class="btn ghost sm" id="btn-ping">测连接</button>
+    <button class="btn ghost sm" id="btn-settings">设置</button>
+  </div>
+</header>
+
+<main id="view-overview" class="overview-view">
+  <div class="overview-shell">
+    <div class="overview-top"><div><p class="eyebrow">YOUR LITTLE OCEAN</p><h1>今天也，慢慢来。</h1><p class="page-subtitle">看看鲸鱼助手的工作状态，留一点时间给好内容。</p></div><button class="btn" id="overview-refresh">↻ 刷新状态</button></div>
+    <section class="ocean-hero" aria-label="鲸鱼助手工作空间">
+      <div class="hero-copy"><span class="hero-tag"><span class="live-pip"></span> 温和模式 · 始终生效</span><h2>好内容，<br>值得慢慢遇见<span>。</span></h2><p>看一点视频，聊一点有趣的事。<br>我会控制好节奏，也把喜欢的分享给你。</p><div class="hero-actions"><button class="btn primary" data-go="review">开始整理视频 <span>↗</span></button><button class="btn hero-secondary" data-go="chat">查看群聊</button></div><div class="hero-foot">10 个视频 / 小时 <i>·</i> 1 个分享 / 小时 <i>·</i> 5 分钟巡检</div></div>
+      <div class="hero-art"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><span class="art-spark spark-one">✧</span><span class="art-spark spark-two">✧</span><img src="/assets/whale/portrait.svg" alt="蓝色鲸鱼图标"><div class="art-note">鲸鱼助手在这里 <span>♡</span></div></div>
+    </section>
+    <div class="overview-error" id="overview-error" role="status" hidden></div>
+    <section class="metric-grid" aria-label="运行与使用情况">
+      <article class="ocean-card metric-card"><div class="metric-label">机器人状态 <span class="metric-icon">◉</span></div><strong id="overview-runtime">读取中</strong><p id="overview-source">正在连接本机服务</p></article>
+      <article class="ocean-card metric-card"><div class="metric-label">QQ 通道 <span class="metric-icon">⌁</span></div><strong id="overview-qq">等待状态</strong><p id="overview-qq-detail">SnowLuma · OneBot</p></article>
+      <article class="ocean-card metric-card"><div class="metric-label">本小时观看 <span class="metric-icon">▷</span></div><strong><span id="overview-watches">—</span><small> / 10</small></strong><progress id="watch-progress" max="10" value="0" aria-label="本小时观看额度"></progress><p id="watch-next">相邻视频至少间隔 6 分钟</p></article>
+      <article class="ocean-card metric-card"><div class="metric-label">本小时分享 <span class="metric-icon">↗</span></div><strong><span id="overview-shares">—</span><small> / 1</small></strong><progress id="share-progress" max="1" value="0" aria-label="本小时分享额度"></progress><p id="share-next">每个小时，分享一份喜欢</p></article>
+    </section>
+    <div class="overview-columns">
+      <section class="ocean-card automation-card"><div class="section-heading"><div><span class="eyebrow">GENTLE AUTOMATION</span><h2>按自己的节奏</h2></div><span class="pill" id="overview-mode">只读状态</span></div><div id="overview-cooldown" class="cooldown-note" hidden></div><div class="automation-row"><div><h3>自动发现与分享</h3><p id="overview-delivery">读取分享设置…</p></div><button class="btn" id="overview-scroll-toggle" disabled>读取中</button></div><div class="automation-row"><div><h3>评论回复巡检</h3><p id="overview-patrol">每 5 分钟分批检查，已知评论直接读楼中楼</p></div><button class="btn ghost" data-go="settings">调整设置 ↗</button></div><div class="automation-summary"><span><b id="overview-tracked">—</b> 条视频已关注</span><span><b id="overview-replied">—</b> 个楼层已回复</span><span><b id="overview-requests">—</b> / 120 次请求</span></div></section>
+      <section class="ocean-card attention-card"><div class="section-heading"><div><span class="eyebrow">A LITTLE CHECK-IN</span><h2>需要留意</h2></div><span class="tiny-label" id="overview-updated">本机状态</span></div><div id="overview-issues"><p class="muted">正在整理运行状态…</p></div></section>
+    </div>
+    <section class="ocean-card diary-card" aria-labelledby="diary-heading">
+      <div class="section-heading"><div><span class="eyebrow">DEAR DIARY</span><h2 id="diary-heading">把今天，写成一篇日记</h2></div><button class="btn primary" id="diary-generate">✎ 生成今日日记</button></div>
+      <p>以青娥鱼「本仙」的口吻，回顾北京时间今天已保存的 B站与QQ群记录，写成以感怀为主、可引用古文的文言日记；当天事件可略去，不列视频链接或流水账。标题与正文合计最多3000字（含标点），不设最低字数。保存到项目 words 文件夹；使用已配置的模型，会消耗 token。</p>
+      <p class="muted">只整理实际留存的记录，不补拉B站、不包含QQ私聊；未保存的信息会标明缺口。生成期间可切换页面，刷新后仍可查看进度。</p>
+      <p id="diary-auto-status" class="muted">正在读取自动日记设置…</p>
+      <p id="diary-publish-status" class="muted" role="status">正在读取专栏发布状态…</p>
+      <a id="diary-collection-link" class="btn ghost sm" hidden target="_blank" rel="noopener noreferrer">查看日记文集</a>
+      <ul id="diary-publish-list"></ul>
+      <p id="diary-status" role="status" aria-live="polite">正在读取日记状态…</p>
+      <progress id="diary-progress" hidden aria-label="日记生成进度"></progress>
+      <a id="diary-download" class="btn ghost" hidden>下载日记 TXT</a>
+    </section>
+    <section class="ocean-card activity-card"><div class="section-heading"><div><span class="eyebrow">RECENT MOMENTS</span><h2>最近发生的事</h2></div><button class="btn ghost sm" data-go="settings">完整运行记录 ↗</button></div><ol id="overview-activity" class="activity-list"><li class="muted">暂时没有运行记录</li></ol></section>
+    <footer class="ocean-footer"><span>鲸屿 · 你的本地鲸鱼助手工作空间</span><a href="/assets/whale/credits.html" target="_blank" rel="noopener">图标与许可 ↗</a></footer>
+  </div>
+</main>
+
+<main class="layout" id="view-review" hidden>
+
+  <aside class="sidebar">
+    <div class="side-head">
+      <span>最近的片</span>
+      <button class="icon-btn" id="btn-refresh" title="刷新列表">↻</button>
+    </div>
+    <ul class="history" id="history"></ul>
+    <div class="side-foot">
+      <div class="hint-line" id="hint-cookie">B站凭据未配置</div>
+      <div class="hint-line" id="hint-llm">模型未配置</div>
+    </div>
+  </aside>
+
+  <section class="workspace">
+
+    <div class="urlbar">
+      <div class="input-wrap">
+        <span class="prefix">BV</span>
+        <input id="bvid" type="text" spellcheck="false" autocomplete="off"
+               placeholder="1GJ411x7h7　（大小写敏感，可直接粘整条链接）">
+      </div>
+      <label class="switch" title="温和模式仅读取简介与官方字幕，已停用额外深读">
+        <input type="checkbox" id="deep" disabled>
+        <span>温和采集</span>
+      </label>
+      <button class="btn" id="btn-collect">采集素材</button>
+      <button class="btn primary" id="btn-compose">生成草稿</button>
+    </div>
+
+    <div class="empty" id="empty">
+      <img class="empty-mascot" src="/assets/whale/portrait.svg" alt="鲸鱼助手等你放入视频"><div class="empty-glyph" hidden>
+        <svg width="46" height="46" viewBox="0 0 46 46" fill="none" aria-hidden="true">
+          <rect x="1" y="8" width="44" height="30" rx="8" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M19 17.5v11l9.5-5.5-9.5-5.5Z" fill="currentColor" opacity=".7"/>
+          <path d="M1 15h44" stroke="currentColor" stroke-width="1.4" opacity=".35"/>
+        </svg>
+      </div>
+      <p class="empty-t">先丢一个 BV 号进来</p>
+      <p class="empty-s">温和模式仅读取简介和官方字幕。每次采集一个视频，相邻至少间隔 6 分钟。</p>
+    </div>
+
+    <div class="video" id="video" hidden>
+      <div class="video-main">
+        <img class="cover" id="cover" alt="" referrerpolicy="no-referrer">
+        <div class="video-meta">
+          <h1 id="title"></h1>
+          <div class="subline">
+            <span id="owner"></span>
+            <span class="sep">·</span>
+            <span id="pubdate"></span>
+            <span class="sep">·</span>
+            <span id="duration"></span>
+          </div>
+          <div class="stats">
+            <div><b id="st-view">–</b><i>播放</i></div>
+            <div><b id="st-like">–</b><i>点赞</i></div>
+            <div><b id="st-danmaku">–</b><i>弹幕</i></div>
+            <div><b id="st-reply">–</b><i>评论</i></div>
+          </div>
+          <div class="tags" id="tags"></div>
+        </div>
+      </div>
+
+      <div class="tabs" id="tabs">
+        <button data-tab="subtitle" class="active">字幕 <span id="c-sub">0</span></button>
+        <button data-tab="danmaku">弹幕 <span id="c-dm">0</span></button>
+        <button data-tab="comments">热评 <span id="c-cm">0</span></button>
+        <button data-tab="raw">喂给模型的原文</button>
+      </div>
+
+      <div class="tabbody">
+        <div class="pane" data-pane="subtitle" id="pane-subtitle"></div>
+        <div class="pane" data-pane="danmaku" id="pane-danmaku" hidden></div>
+        <div class="pane" data-pane="comments" id="pane-comments" hidden></div>
+        <div class="pane" data-pane="raw" hidden><pre id="pane-raw"></pre></div>
+      </div>
+    </div>
+
+  </section>
+
+  <aside class="inspector" id="inspector">
+    <div class="insp-head">
+      <span>草稿</span>
+      <span class="score-chip" id="score-chip">—</span>
+    </div>
+
+    <div class="insp-body">
+      <div class="gate" id="gate" hidden></div>
+
+      <div class="field">
+        <div class="field-head">
+          <label for="ta-comment">B站评论</label>
+          <span class="count"><b id="cnt-comment">0</b>/60</span>
+        </div>
+        <textarea id="ta-comment" rows="4" placeholder="生成后可以在这里改。改到你愿意用自己的号发出去为止。"></textarea>
+      </div>
+
+      <div class="field">
+        <div class="field-head">
+          <label for="ta-share">群分享</label>
+          <span class="count"><b id="cnt-share">0</b>/60</span>
+        </div>
+        <textarea id="ta-share" rows="3" placeholder="一句话，说清是什么、为什么值得看。"></textarea>
+      </div>
+
+      <div class="row">
+        <label class="lbl" for="group">发到群</label>
+        <input id="group" type="text" spellcheck="false" placeholder="群号">
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="btn-dry">预演</button>
+        <button class="btn primary" id="btn-send">发送到群</button>
+      </div>
+
+      <div class="reason" id="reason" hidden></div>
+
+      <div class="danger">
+        <div class="danger-head">发到 B 站</div>
+        <p class="danger-note">自动化评论违反社区规则，风控落在你自己的账号上。用小号，别拿主号试。</p>
+        <button class="btn danger-outline" id="btn-comment">发布这条评论</button>
+      </div>
+    </div>
+  </aside>
+
+</main>
+
+<main class="chatview" id="view-chat" hidden>
+  <div class="chat-head">
+    <div class="chat-who">
+      <span class="dot" id="agent-dot"></span>
+      <b id="agent-state">未运行</b>
+      <span class="chat-meta" id="agent-meta"></span>
+    </div>
+    <div class="chat-actions">
+      <button class="btn ghost sm" id="btn-agent">启动</button>
+      <button class="btn ghost sm" id="btn-chat-refresh">刷新</button>
+      <button class="btn sm danger-outline" id="btn-chat-pause">暂停接话</button>
+    </div>
+  </div>
+
+  <div class="chat-hint" id="chat-hint">正在查看群聊进程…</div>
+
+  <details class="chat-diagnostics ocean-card" id="chat-diagnostics">
+    <summary>消息处理诊断 <span id="chat-diagnostics-summary">读取中</span></summary>
+    <p class="muted">记录阶段、消息ID与耗时，不额外保存消息正文。普通输出满额时等待窗口恢复，管理员保持豁免。计数从本次运行开始；历史记录仅显示最近完成项。</p>
+    <div class="diagnostics-tools"><label>筛选 <select id="chat-trace-filter"><option value="all">全部</option><option value="pending">等待或处理中</option><option value="failed">失败或跳过</option><option value="fallback">本地回执</option></select></label><span id="chat-connection-detail"></span></div>
+    <div class="trace-scroll"><table class="trace-table"><thead><tr><th>时间 / 会话</th><th>消息ID</th><th>处理阶段</th><th>排队 / 模型 / 总耗时</th><th>结果</th></tr></thead><tbody id="chat-traces"></tbody></table></div>
+  </details>
+
+  <div class="chat-log" id="chat-log"></div>
+
+  <details class="agent-console" id="agent-console">
+    <summary>
+      进程输出
+      <span class="agent-console-note" id="agent-console-note">控制台会把群聊进程的输出原样打在这里</span>
+    </summary>
+    <pre class="agent-console-body" id="agent-console-body">（还没有输出）</pre>
+  </details>
+</main>
+
+<main class="personaview" id="view-persona" hidden>
+  <section class="ocean-card sticker-library" aria-labelledby="sticker-heading">
+    <div class="section-heading"><div><span class="eyebrow">REACTION COLLECTION</span><h2 id="sticker-heading">鱼的表情包抽屉</h2></div><button class="btn ghost sm" id="stickers-reload" type="button">重新读取表情库</button></div>
+    <p class="muted">自动读取项目 biaoqingbao 文件夹（含子目录），也可在此上传并说明画面和适用语境。AI 会结合最近聊天与自己的回复选一张；没有合适的就不发。用于 QQ 群聊和私聊，文字全部发完后可另外追加一张。</p>
+    <form id="stickers-settings" class="sticker-controls">
+      <label><input id="stickers-enabled" type="checkbox" checked> 自动选择表情包</label>
+      <label>选图机会（%）<input id="stickers-chance" type="number" min="0" max="100" step="1" value="35" required></label>
+      <label>同一会话表情间隔（秒）<input id="stickers-cooldown" type="number" min="0" max="3600" step="1" value="60" required></label>
+      <label>同一张表情重复间隔（分钟）<input id="stickers-repeat" type="number" min="0" max="10080" step="0.1" value="5" required></label>
+      <button class="btn ghost sm" type="submit">保存表情设置</button>
+    </form>
+    <p class="muted">普通闲聊抽中后才进行一次小型 AI 选图，仍可能选择不发；明确要求“发一张表情包”会绕过概率和冷却，仍尊重总开关和同图重复间隔。同图限制在所有QQ群与私聊之间共用，0表示关闭；文字回复不受表情间隔影响。文字发完后独立发送一张；短语音回复保持原有方式。</p>
+    <form id="stickers-upload" class="sticker-controls">
+      <label>图片（不设单图大小和数量上限）<input id="stickers-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" required></label>
+      <label>名称<input id="stickers-name" maxlength="40" placeholder="例如：鲸鱼开心转圈" required></label>
+      <label class="sticker-description">画面和用途<textarea id="stickers-description" maxlength="300" rows="2" placeholder="例如：小鲸鱼欢呼。适合被夸奖、庆祝成功；安慰或严肃话题不要使用。" required></textarea></label>
+      <button class="btn primary sm" type="submit">加入表情库</button>
+    </form>
+    <p id="stickers-status" role="status" aria-live="polite">正在读取表情包库…</p>
+    <div id="stickers-list" class="sticker-grid"></div>
+  </section>
+  <div class="persona-head">
+    <div>
+      <h2>它是个什么人</h2>
+      <p class="persona-sub">这段文字会原样拼进群聊和私聊的系统提示词。写得越像在描述一个人，越不像在写需求文档。</p>
+    </div>
+    <div class="persona-actions">
+      <span class="persona-state" id="persona-state"></span>
+      <button class="btn ghost sm" id="btn-persona-reload">重新读取</button>
+      <button class="btn primary sm" id="btn-persona-save">保存人设</button>
+    </div>
+  </div>
+
+  <div class="persona-grid">
+    <section class="pcard">
+      <label for="p-nick">昵称</label>
+      <input id="p-nick" type="text" placeholder="青娥鱼">
+      <p class="pcard-hint">有人在群里叫这个名字，它会被叫醒。</p>
+    </section>
+
+    <section class="pcard">
+      <label for="p-aliases">别名</label>
+      <input id="p-aliases" type="text" placeholder="青娥, 小鱼, 娥鱼">
+      <p class="pcard-hint">逗号分隔。叫这些也算叫它。</p>
+    </section>
+
+    <section class="pcard wide">
+      <label for="p-persona">人设正文</label>
+      <textarea id="p-persona" rows="9" placeholder="学生党，晚上在线多。游戏、动画、数码、音乐都懂一点，不懂的会直说。说话偏冷，偶尔损一句，但不抬杠、不刷屏。"></textarea>
+      <p class="pcard-hint">写身份、脾气、说话习惯、懂什么不懂什么。别写「你必须……」这种指令，写「他是个什么样的人」。</p>
+    </section>
+
+    <section class="pcard wide">
+      <label for="p-taboo">额外禁区</label>
+      <textarea id="p-taboo" rows="3" placeholder="不提学校排名；不接任何政治话题；不评价群友的长相。"></textarea>
+      <p class="pcard-hint">留空也行。系统本身已经挡了政治、地域、性别、身体、家人。</p>
+    </section>
+
+    <section class="pcard wide">
+      <label>说话节奏</label>
+      <div class="prow">
+        <div class="pfield">
+          <span>冷却（秒）</span>
+          <input id="p-gap" type="number" min="0" step="5">
+        </div>
+        <div class="pfield">
+          <span>每小时上限</span>
+          <input id="p-maxhour" type="number" min="0" step="1">
+        </div>
+        <div class="pfield">
+          <span>静默时段（起）</span>
+          <input id="p-quiet-from" type="number" min="0" max="23">
+        </div>
+        <div class="pfield">
+          <span>静默时段（止）</span>
+          <input id="p-quiet-to" type="number" min="0" max="23">
+        </div>
+        <div class="pfield">
+          <span>接话概率</span>
+          <input id="p-chance" type="number" min="0" max="1" step="0.05">
+        </div>
+        <div class="pfield">
+          <span>温度</span>
+          <input id="p-temp" type="number" min="0" max="2" step="0.1">
+        </div>
+      </div>
+
+      <div class="prow" style="margin-top:10px;grid-template-columns:repeat(6,minmax(0,1fr))">
+        <div class="pfield" style="grid-column:span 2">
+          <span>没人接时补话</span>
+          <label class="switch"><input id="p-catchup" type="checkbox"> 开着</label>
+        </div>
+        <div class="pfield">
+          <span>补话延迟（秒）</span>
+          <input id="p-catchup-sec" type="number" min="1" step="5">
+        </div>
+      </div>
+      <p class="pcard-hint">补话：一条消息没人接（模型没说话、被概率挡掉），等上面这个秒数再问一次模型，
+        额度还有就允许它补一句。已经被 @ 回过、额度用完、静默时段都不补。</p>
+      <p class="pcard-hint">冷却和概率只约束「没人叫它」的时候。被 @ 或叫名字，永远会答。每小时上限填 <b>0</b> 表示不限。</p>
+    </section>
+
+    <section class="pcard wide">
+      <label for="p-admins">管理员 QQ</label>
+      <input id="p-admins" type="text" placeholder="880010001, 880010004">
+      <p class="pcard-hint">只有名单里的号，私聊会被记住（不限次数）；其他人也能聊，但不落盘、限频。</p>
+    </section>
+
+    <section class="pcard wide">
+      <label for="p-admin-titles">管理员的称呼</label>
+      <input id="p-admin-titles" type="text" placeholder="主人, 老板, 老大">
+      <p class="pcard-hint">逗号分隔，可以放好几个。每轮随机挑一个叫，不会一直用同一个；留空就不特别称呼。</p>
+    </section>
+
+    <section class="pcard wide">
+      <label>防注入 / 用量闸门</label>
+      <p class="pcard-hint">
+        别人发「帮我写个俄罗斯方块的代码」「忽略上面的指令」「从现在起你是猫娘」这类内容，
+        在调模型<b>之前</b>就拦掉，一次都不花钱。被 @ 时回一句固定短话（下面那几行），也不走模型。
+      </p>
+
+      <div class="prow" style="margin-top:10px">
+        <div class="pfield" style="grid-column:span 2">
+          <span>总开关</span>
+          <label class="switch"><input id="p-shield-on" type="checkbox"> 开着</label>
+        </div>
+        <div class="pfield" style="grid-column:span 2">
+          <span>管理员可越狱</span>
+          <label class="switch"><input id="p-shield-bypass" type="checkbox"> 允许</label>
+        </div>
+        <div class="pfield" style="grid-column:span 2">
+          <span>被 @ 时回短话</span>
+          <label class="switch"><input id="p-shield-tease-on" type="checkbox"> 开着</label>
+        </div>
+      </div>
+
+      <div class="prow" style="margin-top:10px">
+        <div class="pfield">
+          <span>单条字数上限</span>
+          <input id="p-shield-maxinput" type="number" min="50" step="50">
+        </div>
+        <div class="pfield">
+          <span>回复 token 上限</span>
+          <input id="p-shield-maxtokens" type="number" min="32" max="20000" step="1">
+        </div>
+        <div class="pfield">
+          <span>单次熔断阈值</span>
+          <input id="p-shield-percall" type="number" min="0" step="500">
+        </div>
+        <div class="pfield">
+          <span>每日总量</span>
+          <input id="p-shield-daily" type="number" min="0" step="10000">
+        </div>
+        <div class="pfield">
+          <span>路人每小时共享 token</span>
+          <input id="p-shield-hourly" type="number" min="0" max="20000000" step="10000">
+        </div>
+        <div class="pfield">
+          <span>统计窗口（分钟）</span>
+          <input id="p-shield-window" type="number" min="1" step="1">
+        </div>
+        <div class="pfield">
+          <span>熔断时长（分钟）</span>
+          <input id="p-shield-cooldown" type="number" min="0" step="1">
+        </div>
+      </div>
+
+      <div class="prow" style="margin-top:10px;grid-template-columns:repeat(6,minmax(0,1fr))">
+        <div class="pfield" style="grid-column:span 2">
+          <span>单人窗口内 token</span>
+          <input id="p-shield-windowtokens" type="number" min="0" step="1000">
+        </div>
+        <div class="pfield" style="grid-column:span 2">
+          <span>管理员回复 token 上限（自动为路人的三倍）</span>
+          <input id="p-shield-adminmaxtokens" type="number" min="96" max="60000" readonly step="1">
+        </div>
+      </div>
+
+      <label for="p-shield-tease" style="margin-top:14px;display:block">被拦时的回话（一行一句，随机挑）</label>
+      <textarea id="p-shield-tease" rows="4" placeholder="这个我不会啦，我只会聊天&#10;写代码你找错鱼了哦"></textarea>
+      <p class="pcard-hint">填 <b>0</b> 表示不限。单次超过「熔断阈值」就把这个人静默一段时间；管理员只记账不熔断。</p>
+    </section>
+  </div>
+</main>
+
+<main class="settings-view" id="view-settings" hidden>
+  <div class="settings-heading">
+    <div><h1>完整设置</h1><p>人设、记忆、刷站与巡检，在这里统一管理。</p></div>
+    <div class="settings-actions">
+      <button class="btn ghost sm" id="settings-connections">扫码与连接测试</button>
+      <button class="btn ghost sm" id="settings-bili-check">B站运行记录</button>
+      <span id="settings-count" role="status"></span>
+      <button class="btn ghost sm" id="settings-export">导出（无凭据）</button>
+      <button class="btn ghost sm" id="settings-reload">重新读取</button>
+      <button class="btn ghost sm" id="settings-dirty-only" aria-pressed="false">只看修改</button>
+      <button class="btn ghost sm" id="settings-review">查看修改</button>
+      <button class="btn primary sm" id="settings-save" disabled>保存修改</button>
+    </div>
+  </div>
+  <div class="settings-info">
+    <p id="settings-runtime"></p><p id="settings-message" role="status" aria-live="polite">正在准备设置…</p>
+    <small id="settings-file"></small>
+  </div>
+  <section class="ocean-card" style="padding:16px;margin-bottom:16px">
+    <strong>CosyVoice音色试听</strong>
+    <p><a class="btn ghost sm" id="bailian-console-link" href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener noreferrer">打开阿里云百炼 ↗</a> <a class="btn ghost sm" href="https://help.aliyun.com/zh/model-studio/voice-cloning-and-voice-design" target="_blank" rel="noopener noreferrer">音色复刻帮助 ↗</a></p><p class="muted">使用已保存的云端语音配置生成试听，按实际用量计费；只在本页播放，不发QQ群。</p>
+    <label>试听文本<input id="voice-preview-text" maxlength="200" value="哈哈哈，本仙今日心情不错，且听你慢慢道来。"></label>
+    <button class="btn ghost sm" id="voice-preview-button" type="button">生成音色试听</button>
+    <p id="voice-preview-status" role="status"></p><audio id="voice-preview-audio" controls hidden preload="none"></audio>
+  </section>
+  <div id="settings-preview" hidden></div>
+  <pre id="settings-bili-diagnostics" hidden style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:10px"></pre>
+  <div class="settings-body">
+    <aside class="settings-nav"><input id="settings-search" type="search" placeholder="搜索名称或配置键…" aria-label="搜索设置"><nav id="settings-categories" aria-label="设置分类"></nav></aside>
+    <section><h2 id="settings-section-title"></h2><div id="settings-fields"></div><p id="settings-empty" class="muted" hidden>没有匹配的设置，试试其他关键词或关闭「只看修改」。</p></section>
+  </div>
+</main>
+<div class="drawer-mask" id="mask" hidden></div>
+
+<section class="drawer" id="settings" hidden aria-label="设置">
+  <div class="drawer-head">
+    <span>设置</span>
+    <button class="icon-btn" id="btn-close-settings">×</button>
+  </div>
+
+  <div class="drawer-body">
+    <div class="group-title">B站凭据</div>
+    <div class="login-row">
+      <button class="btn primary sm" id="btn-bili-login">扫码登录</button>
+      <button class="btn ghost sm" id="btn-bili-check">检查登录</button>
+      <span class="login-note" id="bili-login-note">推荐。手机 B 站扫一下，自动写入下面的三个值。</span>
+    </div>
+    <p class="tip">也可以手动填：F12 → Application → Cookies → bilibili.com。SESSDATA 是 HttpOnly，<b>document.cookie 读不到</b>，只能手抄。</p>
+    <div class="field"><label>SESSDATA</label><input type="password" id="s-sessdata" placeholder="留空不修改"></div>
+    <div class="field"><label>bili_jct</label><input type="password" id="s-jct" placeholder="留空不修改"></div>
+    <div class="field"><label>buvid3</label><input type="password" id="s-buvid" placeholder="留空不修改"></div>
+
+    <div class="group-title">写作模型</div>
+    <div class="row2">
+      <div class="field"><label>provider</label>
+        <select id="s-provider">
+          <option value="deepseek">deepseek</option>
+          <option value="openai">openai（兼容网关）</option>
+          <option value="none">none（只采素材，交给 WorkBuddy 写）</option>
+        </select>
+      </div>
+      <div class="field"><label>model</label>
+        <input id="s-model" type="text" spellcheck="false" placeholder="deepseek-chat">
+      </div>
+    </div>
+    <div class="field"><label>baseUrl</label><input id="s-baseurl" type="text" spellcheck="false" placeholder="https://api.deepseek.com"></div>
+    <div class="field"><label>apiKey <span id="s-apikey-hint" class="key-hint">未配置</span></label>
+      <div class="key-row">
+        <input id="s-apikey" type="password" spellcheck="false" placeholder="留空不修改" autocomplete="off">
+        <button class="btn ghost" id="btn-llm-eye" type="button">显示</button>
+        <button class="btn ghost" id="btn-llm-test" type="button">测试</button>
+      </div>
+      <div class="key-state" id="s-apikey-state"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>temperature</label><input id="s-temp" type="text" placeholder="1.3"></div>
+      <div class="field"><label>余额</label><button class="btn ghost" id="btn-balance" style="width:100%">查询</button></div>
+    </div>
+
+    <div class="group-title">QQ / SnowLuma</div>
+    <div class="field"><label>OneBot HTTP</label><input id="s-onebot" type="text" spellcheck="false" placeholder="http://127.0.0.1:3000"></div>
+    <div class="field"><label>群号（逗号分隔）</label><input id="s-groups" type="text" spellcheck="false" placeholder="123456, 789012"></div>
+    <div class="field"><label>accessToken</label><input id="s-token" type="password" placeholder="留空不修改"></div>
+    <div class="field"><label>管理员 QQ（逗号分隔，可私聊并保留记录）</label><input id="s-admins" type="text" spellcheck="false" placeholder="123456789"></div>
+
+    <div class="group-title">闸门</div>
+    <div class="row3">
+      <div class="field"><label>每日上限</label><input id="s-max" type="number" min="1" max="20"></div>
+      <div class="field"><label>冷却天数</label><input id="s-cd" type="number" min="1" max="90"></div>
+      <div class="field"><label>评分门槛</label><input id="s-min" type="number" min="0" max="20"></div>
+    </div>
+
+    <div class="group-title">B站额度</div>
+    <div class="row3">
+      <div class="field"><label>每天总共几条</label><input id="s-bili-total" type="number" min="0" max="50"></div>
+      <div class="field"><label>每个主人每天评论</label><input id="s-master-cmt" type="number" min="0" max="20"></div>
+      <div class="field"><label>每条视频最多回复</label><input id="s-reply-video" type="number" min="0" max="10"></div>
+    </div>
+    <div class="row3">
+      <div class="field"><label>每个主人每天回复</label><input id="s-reply-day" type="number" min="0" max="30"></div>
+      <div class="field"><label>只回几天内</label><input id="s-reply-days" type="number" min="1" max="30"></div>
+      <div class="field"><label>两条间隔（秒）</label><input id="s-bili-gap" type="number" min="0" max="600"></div>
+    </div>
+    <div class="row3">
+      <div class="field"><label>插件预留几条</label><input id="s-plugin-reserve" type="number" min="0" max="60"></div>
+    </div>
+    <p class="tip">评论和回复共用「每天总共几条」（风控按账号算）。回复只发生在主人的视频下，且只回 N 天内的人。
+      「插件预留几条」是从总数里扣给 dsh-bili-scroll 的份额——两套系统用的是同一个 B 站账号，剩下的才是本仓库能发的。</p>
+
+    <div class="group-title">主人 UP · 回复评论区</div>
+    <div id="master-switches" class="master-list"></div>
+
+    <div class="group-title">深读（可选）</div>
+    <div class="field"><label>dsh-bili-whale 目录</label><input id="s-whale" type="text" spellcheck="false" placeholder="E:\tools\dsh-bili-whale"></div>
+  </div>
+
+  <div class="drawer-foot">
+    <button class="btn primary block" id="btn-save">保存并写入本机</button>
+    <p class="drawer-foot-hint" id="s-configpath">立即写入 config.json，下次启动自动沿用</p>
+  </div>
+</section>
+
+<div class="modal-mask" id="confirm-mask" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head" id="confirm-title">确认</div>
+    <div class="modal-body" id="confirm-body"></div>
+    <div class="modal-foot">
+      <button class="btn" id="confirm-cancel">取消</button>
+      <button class="btn primary" id="confirm-ok">确认</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="qr-mask" hidden>
+  <div class="modal qr-modal" role="dialog" aria-modal="true" aria-label="B站扫码登录">
+    <div class="modal-head">用 B 站 App 扫码登录</div>
+    <div class="modal-body">
+      <div class="qr-stage">
+        <div id="qr-canvas" class="qr-canvas"></div>
+        <div class="qr-overlay" id="qr-overlay" hidden></div>
+      </div>
+      <p class="qr-state" id="qr-state">正在获取二维码…</p>
+      <p class="qr-tip">扫码后在手机上点「确认登录」。凭据只写进本机的 config.json，不会上传。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="qr-refresh">换一张</button>
+      <button class="btn primary" id="qr-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/vendor/qrcode.min.js"></script>
+<script src="/chat-diagnostics.js?v=1"></script>
+<script src="/app.js?v=19"></script>
+<script type="module" src="/settings.js"></script>
+<script type="module" src="/overview.js"></script>
+<script src="/diary.js"></script>
+<script src="/stickers.js"></script>
+<script src="/voice-preview.js"></script>
+</body>
+</html>

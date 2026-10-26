@@ -1,0 +1,56 @@
+{
+  "name": "dsh-whale",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSH 插件：把 bili-whale-qq（B站评论区巡检 + QQ 群聊）挂进 DSH 宿主进程，不再需要独立 agent 进程",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "bilibili",
+    "qq"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "lib",
+    "selfcheck.mjs",
+    "rollback.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "selfcheck": "node selfcheck.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
+      ]
+    }
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "_说明": "复制成config.json，填入自己的账号与凭据；无预置管理员/群/音色，默认关闭自动分享、巡检与发布。",
+  "bili": {
+    "sessdata": "env:BILI_SESSDATA",
+    "bili_jct": "env:BILI_JCT",
+    "buvid3": "env:BILI_BUVID3",
+    "cookie_file": "",
+    "watchList": [],
+    "watchUps": [],
+    "masters": [],
+    "_masters说明": "主人 UP：他们的新片会优先看，语气放开（像跟熟人说话），并且自动去视频下发评论。mid 就是 space.bilibili.com 后面那串数字。autoComment=false 只关自动评论，不影响语气。"
+  },
+  "llm": {
+    "_说明": "provider=deepseek 走官方；provider=openai 可接任何 OpenAI 兼容网关；provider=workbuddy 仅适用于部署在 WorkBuddy 云服务上的应用。",
+    "provider": "deepseek",
+    "baseUrl": "https://api.deepseek.com",
+    "apiKey": "env:DEEPSEEK_API_KEY",
+    "model": "deepseek-chat",
+    "temperature": 1.3,
+    "maxCharsSubtitle": 6000,
+    "maxCharsDanmaku": 1200,
+    "maxComments": 15,
+    "requestTimeoutSec": 60,
+    "maxRetries": 2
+  },
+  "qq": {
+    "onebotHttp": "http://127.0.0.1:3000",
+    "accessToken": "env:ONEBOT_TOKEN",
+    "groupIds": [],
+    "atAll": false,
+    "sendCard": false,
+    "wsUrl": "ws://127.0.0.1:3001",
+    "wsToken": ""
+  },
+  "guard": {
+    "_说明": "硬闸门，代码里强制执行，不靠自觉。",
+    "maxSharePerDay": 3,
+    "sameVideoCooldownDays": 7,
+    "minScore": 13,
+    "requireConfirm": true,
+    "stopOnRiskControl": true
+  },
+  "whale": {
+    "_说明": "填了就走 dsh-bili-whale 的现成 CLI（支持抽帧看画面、硬字幕裁切）；留空则用本仓库内置的轻量采集。",
+    "dir": "",
+    "ffmpeg": ""
+  },
+  "chat": {
+    "_说明": "群聊模式。enabled=false 就完全不接话。",
+    "enabled": false,
+    "nick": "青娥鱼",
+    "persona": "青娥鱼，自称本仙。说话自信、简洁，依据实际资料回答；可在WebUI自定义人设。",
+    "aliases": [
+      "青娥",
+      "小鱼",
+      "娥鱼"
+    ],
+    "groups": [],
+    "minGapSec": 0,
+    "maxPerHour": 0,
+    "quietHours": [
+      2,
+      8
+    ],
+    "contextMessages": 14,
+    "_history说明": "historyRestore 是重启后从本地日志捞回多少条消息当上下文（0 = 不恢复；默认跟 contextMessages 走）；historyReplyWindowSec 是重启后「最后一条别人发的消息」在多久之内、且是 @ 你 / 喊你名字 / 管理员说话，才主动追一句（0 = 只恢复上下文不开口）。",
+    "historyRestore": 14,
+    "historyReplyWindowSec": 0,
+    "speakChance": 1,
+    "quote": true,
+    "temperature": 0.8,
+    "videoRequestCooldownSec": 1800,
+    "admins": [],
+    "private": {
+      "_说明": "私聊：管理员的话落盘；普通群友只存在内存里，过期即忘。",
+      "minGapSec": 0,
+      "maxPerHour": 0,
+      "guestMemoryMinutes": 30
+    },
+    "taboo": "",
+    "outputRateOnly": true,
+    "replyEveryMessage": true,
+    "longFormTemperature": 0.6,
+    "adminTitle": "Master",
+    "guestTitle": "魔术师",
+    "command": {
+      "enabled": true,
+      "prefix": "我以令咒命之："
+    },
+    "shield": {
+      "adminMaxOutputTokens": 780
+    },
+    "search": {
+      "enabled": true
+    },
+    "voice": {
+      "enabled": false,
+      "maxChars": 80,
+      "chance": 0.35,
+      "character": "lucy-voice-xueling",
+      "provider": "qq-native",
+      "instruction": "",
+      "boostDb": 0,
+      "normalizeLoudness": true,
+      "loudnessTarget": -16
+    }
+  },
+  "scroll": {
+    "_说明": "刷B站：deliveryMode=private 默认 QQ 私聊管理员（或 privateUsers），comment 改为 B站评论区 @；syncGroups=true 将有趣的视频同步到 groupIds（留空用 qq.groupIds）。perDay 按视频数计，一条视频发送给多个目的地只计一次。",
+    "deliveryMode": "private",
+    "privateUsers": [],
+    "syncGroups": false,
+    "groupIds": [],
+    "perDay": 3,
+    "biliPrivateEnabled": false,
+    "biliPrivateUsers": [],
+    "enabled": false
+  },
+  "share": {
+    "_说明": "自己找片。discover=true 时从热门/排行榜随机看，watchList 里的优先。",
+    "enabled": false,
+    "everyMinutes": 240,
+    "firstDelayMinutes": 10,
+    "maxPerDay": 2,
+    "maxAttempts": 1,
+    "minScore": 14,
+    "discover": true,
+    "discoverLimit": 20,
+    "temperature": 1.2,
+    "blockKeywords": [
+      "政治",
+      "时政",
+      "军事",
+      "中美",
+      "俄乌",
+      "以色列",
+      "巴以"
+    ],
+    "masterMaxAgeDays": 30,
+    "masterCommentPerDay": 1,
+    "randomPick": true,
+    "biliCommentPerDay": 6,
+    "pluginReservePerDay": 0,
+    "masterReplyPerDay": 3,
+    "masterReplyPerVideo": 2,
+    "masterReplyWithinDays": 3,
+    "biliGapSec": 120,
+    "replyWatchVideos": [],
+    "replyPatrolMinutes": 0,
+    "replyPatrolFirstDelayMinutes": 5,
+    "replyPatrolWithinDays": 7,
+    "_额度说明": "biliCommentPerDay 是**账号**每天总共能发几条（评论+回复），风控按账号算；pluginReservePerDay 是从里面扣给 dsh-bili-scroll 插件的份额（同一个 B 站账号；默认 0=不预留），扣完剩下的才是本仓库能用的。masterCommentPerDay / masterReplyPerDay 是每个主人每天的细分上限；masterReplyPerVideo 是单条视频最多回几条（评论区巡检也用它）；masterReplyWithinDays 是只回几天内的评论；biliGapSec 是两次发言的最小间隔秒数。",
+    "_巡检说明": "评论区巡检：每隔 replyPatrolMinutes 分钟（0 或负数 = 关闭）去看一遍「自己发过评论的视频 + replyWatchVideos 兜底名单」，谁在评论底下接话就读完整栋楼再回一句，主人优先。replyWatchVideos 里直接写 BV 号（粘整条链接也认）。replyPatrolFirstDelayMinutes 是启动后第一次巡检的延迟。replyPatrolWithinDays 只接这几天内的楼中楼（主人的回复不看时间）。回过的楼层记在 .data/state.json 的 replied，重启也不会重复回。",
+    "ownVideoReplies": false,
+    "replyFocusVideos": []
+  },
+  "biliInbox": {
+    "enabled": false,
+    "mentionsEnabled": false,
+    "privateUsers": [],
+    "pollMinutes": 5,
+    "lookbackHours": 48
+  },
+  "diary": {
+    "autoEnabled": false,
+    "publishEnabled": false,
+    "publishGapMinutes": 15,
+    "collectionName": "青娥鱼的日记"
+  },
+  "vision": {
+    "enabled": false,
+    "model": "deepseek-flash",
+    "maxImages": 3,
+    "detail": "auto"
+  }
+}

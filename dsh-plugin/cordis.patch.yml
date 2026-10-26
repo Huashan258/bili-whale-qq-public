@@ -1,0 +1,27 @@
+# ============================================================================
+# dsh-whale —— DSH bundle patch（插件自带的挂载声明）
+# ============================================================================
+# 装法（本地开发用 link:，不用发 npm）：
+#   dsh plugin --profile desktop add link:C:/apps/bili-whale-qq/dsh-plugin
+# 然后把 "dsh-whale" 加进 ~/.dsh/profiles/desktop/package.json 的 dsh.profile.bundles。
+#
+# ⚠️ id 必须等于 index.js 里 `export const name`（这里是 whale），
+#    否则 DSH 的原生设置页认不出这条 entry（`Plugin entry … has no volatile fields`）。
+#
+# ⚠️ enabled 默认 false：装上去先什么都不做，要用户在设置页自己开。
+#    这么做的原因：插件跑在 DSH 宿主进程里，一上来就抢 OneBot / 打 B站接口
+#    会和正在跑的独立 agent 撞车（同一条群消息回两遍）。
+# ============================================================================
+
+- insert:
+    - id: whale
+      name: dsh-whale
+      config:
+        # 真正的用户配置在插件自己的 config（设置页可改），这里只放默认值
+        enabled: false
+        dry: true
+        replyPatrolMinutes: 30
+        qqEnabled: false
+        webUi: false
+        webUiPort: 7788
+        dataDir: ''
