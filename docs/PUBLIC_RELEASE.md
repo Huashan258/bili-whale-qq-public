@@ -11,4 +11,4 @@
 - 语气指令默认空，额外增益默认0；自动分享、巡检与投稿默认关闭。
 - 启动脚本仅启动WebUI，由其按规则托管业务，不额外重复启动Agent。
 
-此版本为本地发布候选；整理本身不代表已经创建远程公开仓库或验证全部外部API。测试结果见 RELEASE_VALIDATION.md。
+公开仓库：https://github.com/Huashan258/bili-whale-qq-public 。仅包含整理后的新提交，不含原私有历史。测试结果见 RELEASE_VALIDATION.md；上传源码不代表已验证全部外部API。

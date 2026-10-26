@@ -4,6 +4,8 @@
 
 本仓库是独立整理的公开源码版本，不包含私人部署的账号、聊天历史、知识库、音色、表情包或旧Git历史。
 
+GitHub：[Huashan258/bili-whale-qq-public](https://github.com/Huashan258/bili-whale-qq-public)。
+
 ## 功能
 
 | 模块 | 能力 |
