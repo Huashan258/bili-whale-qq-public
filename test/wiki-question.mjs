@@ -9,7 +9,7 @@ const {createCommandResearch}=await import('../src/command-research.mjs')
 const {prepareDeepReply}=await import('../src/deep-reply.mjs')
 const {generateDirectReply}=await import('../src/chat-response.mjs')
 try{
-  for(const text of ['若娜瓦是谁','@881000004 若娜瓦是谁','介绍一下若娜瓦','你知道若娜瓦吗','若娜瓦的资料','谁是若娜瓦','「若娜瓦」是谁'])assert.equal(searchIntent(text).query,'若娜瓦',text)
+  for(const text of ['若娜瓦是谁','@3816283038 若娜瓦是谁','介绍一下若娜瓦','你知道若娜瓦吗','若娜瓦的资料','谁是若娜瓦','「若娜瓦」是谁'])assert.equal(searchIntent(text).query,'若娜瓦',text)
   assert.equal(searchIntent('我是谁'),null)
   assert.equal(searchIntent('你知道我的名字吗'),null)
   assert.equal(searchIntent('你知道我是谁吗'),null)

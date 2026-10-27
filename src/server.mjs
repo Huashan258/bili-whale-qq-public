@@ -2,6 +2,11 @@
 import {createCosyVoice,cosyReady} from './cosyvoice.mjs'
 import {createGptSovits,localVoiceReady,localVoiceEndpoint} from './gpt-sovits.mjs'
 import {localVoiceOnline,startLocalVoice} from './local-voice-host.mjs'
+import {createVoiceLab} from './voice-lab.mjs'
+import {createQQVoiceSender} from './qq-voice.mjs'
+import {createNativeVoiceUi} from './voice-native-ui.mjs'
+import {createVoiceStudioHost} from './voice-studio-host.mjs'
+import {readStudioParameters,saveStudioParameters,validateStudioParameters,STUDIO_PARAMETERS} from './voice-studio-config.mjs'
 import {randomUUID} from 'node:crypto'
 import {hourlyScrollSummary} from './hourly-scroll.mjs'
 import { createDiaryService } from './diary.mjs'
@@ -36,6 +41,9 @@ import { fields as settingFields } from '../public/settings-schema.js'
 import { createDshLink } from './dsh-link.mjs'
 import { buildOverview } from './overview.mjs'
 import { readJsonlTail } from './chat-diagnostics.mjs'
+import {readChatHistory} from './chat-history.mjs'
+import {DICE_ROOT,loadDiceModule,diceStatus,diceGroups,setDiceKeeper,clearDicePlayers,diceTheatre,diceTheatreDefaults,npcMemory,editNpcMemory} from './dice-plugin.mjs'
+import {scripts} from './trpg-scripts.mjs'
 
 // 版本太旧时 prompt 级别的报错很晦涩（比如 import.meta.dirname 不存在），
 // 不如在入口就把话说清楚
@@ -171,8 +179,30 @@ function listHistory() {
 
 const synthesizeVoice=createCosyVoice()
 const synthesizeLocalVoice=createGptSovits()
+const voiceLab=createVoiceLab(),voicePreviewSender=createQQVoiceSender({synthesize:synthesizeVoice,synthesizeLocal:synthesizeLocalVoice})
+const nativeVoiceUi=createNativeVoiceUi(),voiceStudio=createVoiceStudioHost()
 let voicePreviewBusy=false
 const routes = {
+  async 'GET /api/voice/studio'(){const c=cfg();return {native:await nativeVoiceUi.status(),trainingMode:voiceStudio.trainingMode(),parameters:readStudioParameters(),defaults:STUDIO_PARAMETERS,models:voiceStudio.models(c),active:voiceStudio.active(c),workers:await voiceStudio.workers(c),reference:{audio:c.chat?.voice?.localReferenceAudio??'',text:c.chat?.voice?.localPromptText??'',language:c.chat?.voice?.localTextLanguage||'zh',promptLanguage:c.chat?.voice?.localPromptLanguage||'zh'}}},
+  async 'GET /api/voice/studio/native'(){return nativeVoiceUi.status()},
+  async 'POST /api/voice/studio/start'(){return nativeVoiceUi.start(cfg())},
+  async 'POST /api/voice/studio/parameters'(body){return {ok:true,parameters:saveStudioParameters(body.parameters)}},
+  async 'POST /api/voice/studio/training'(body){if(typeof body.enabled!=='boolean')throw Error('需要明确的训练模式开关');return body.enabled?voiceStudio.pause(cfg()):voiceStudio.resume(cfg())},
+  async 'POST /api/voice/studio/model'(body){return {ok:true,active:await voiceStudio.apply(cfg(),body)}},
+  async 'POST /api/voice/studio/reference'(body){const audio=String(body.audio??'').trim(),text=String(body.text??'').trim();if(!path.isAbsolute(audio)||!fs.existsSync(audio)||!fs.statSync(audio).isFile()||!text)throw Error('参考音频须是存在的本机文件，并填写对应原文');return settingsStore.save({revision:settingsStore.snapshot().revision,patch:{'chat.voice.localReferenceAudio':audio,'chat.voice.localPromptText':text,'chat.voice.localTextLanguage':body.language||'zh','chat.voice.localPromptLanguage':body.promptLanguage||'zh'}})},
+  async 'GET /api/voice/lab'(){return {records:voiceLab.list(),retention:20}},
+  async 'POST /api/voice/lab/clear'(){voiceLab.clear();return {ok:true}},
+  async 'GET /api/voice/lab/path'(){
+      const c=cfg(),v=c.chat?.voice??{},root=path.resolve(v.localInstallDir||'.'),infer=fs.existsSync(path.join(DATA,'gpt-sovits-studio.yaml'))?path.join(DATA,'gpt-sovits-studio.yaml'):path.join(root,'GPT_SoVITS','configs','tts_infer.yaml');let weights=[]
+    try{weights=fs.readFileSync(infer,'utf8').split(/(?=^\S)/m).find(s=>s.startsWith('custom:'))?.split(/\r?\n/).filter(l=>/t2s_weights_path|vits_weights_path|device:|version:/.test(l)).map(l=>l.trim().replace(/"([^"]*)"/g,m=>{try{return JSON.parse(m)}catch{return m}}))}catch{}
+    const dsh=await dshLink.read()
+    return {provider:v.provider,endpoint:localVoiceEndpoint(v.localApiUrl)+'/tts',installation:root,python:path.join(root,'runtime','python.exe'),entry:path.join(root,'api_v2.py'),inferenceConfig:infer,referenceAudio:v.localReferenceAudio,referenceText:v.localPromptText||'',referenceExists:fs.existsSync(v.localReferenceAudio||''),weights,online:await localVoiceOnline(c),gainDb:v.localGainDb??0,source:dsh?.status?.running?'DSH实际发送器':'本地试听链',output:'每请求独立音频字节 → QQ base64 record；无固定输出文件复用',auditDir:path.join(DATA,'voice-lab')}
+  },
+  async 'GET /api/mood'(){
+    const dsh=await dshLink.read();let state=dsh?.status?.chat?.mood
+    if(!state)try{const agent=JSON.parse(fs.readFileSync(path.join(DATA,'agent.json'),'utf8'));if(Date.now()-agent.heartbeat<60000)state=agent.mood}catch{}
+    return state??{enabled:cfg().chat?.mood?.enabled===true,latest:null,pending:0}
+  },
   async 'GET /api/voice/status'(){
     const c=cfg(),v=c.chat?.voice??{},local=v.provider==='gpt-sovits';let online=null
     if(local)online=await localVoiceOnline(c)
@@ -180,18 +210,21 @@ const routes = {
   },
   async 'POST /api/voice/local/start'(){return startLocalVoice(cfg())},
   async 'POST /api/voice/preview'(body){
+    const parameters=body.parameters===undefined?undefined:validateStudioParameters(body.parameters)
+    if(parameters&&cfg().chat?.voice?.provider!=='gpt-sovits')throw Error('高级推理参数仅用于本地GPT-SoVITS，请先切换语音提供方')
     if(voicePreviewBusy)throw Error('已有音频试听正在生成，请稍候')
     voicePreviewBusy=true
     try{
       const dsh=await dshLink.read()
       if(dsh?.status?.running){
+          if(parameters&&!dsh.status.chat?.qqVoice?.studioParameters)throw Error('请先重新加载DSH语音模块以启用高级推理参数')
         if(dsh.status.chat?.qqVoice?.senderRevision!==2)throw Error('请先重新加载DSH语音模块，使试听与实际发送使用同一条链路')
-        const r=await fetch(dsh.base+'/api/whale/voice/preview',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:body.text||'本仙在此，你有什么想说的，尽管道来。'}),signal:AbortSignal.timeout(610000)})
+        const r=await fetch(dsh.base+'/api/whale/voice/preview',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:body.text||'本仙在此，你有什么想说的，尽管道来。',parameters}),signal:AbortSignal.timeout(610000)})
         const preview=await r.json();if(!r.ok)throw Error(preview.error||'DSH语音试听失败');return preview
       }
       const c=cfg(),provider=c.chat?.voice?.provider||'qq-native'
       if(provider==='qq-native')throw Error('QQ原生语音不能在本地试听，请选择CosyVoice或本地GPT-SoVITS')
-      const audio=await (provider==='gpt-sovits'?synthesizeLocalVoice:synthesizeVoice)(body.text||'本仙在此，你有什么想说的，尽管道来。',c)
+      const audio=await voicePreviewSender.preview(body.text||'本仙在此，你有什么想说的，尽管道来。',c,{parameters})
       const dir=path.join(DATA,'voice-preview');fs.mkdirSync(dir,{recursive:true})
       const id=randomUUID();fs.writeFileSync(path.join(dir,id+'.wav'),audio.bytes,{flag:'wx'})
       const files=fs.readdirSync(dir).filter(f=>/^[a-f0-9-]{36}\.wav$/.test(f)).map(f=>({f,mtime:fs.statSync(path.join(dir,f)).mtimeMs})).sort((a,b)=>b.mtime-a.mtime)
@@ -526,10 +559,8 @@ const routes = {
     const online = Boolean(hb && Date.now() - Number(hb.heartbeat ?? 0) < 90_000)
 
     const logf = path.join(DATA, 'chat.log')
-    const log = []
-    if (fs.existsSync(logf)) {
-      log.push(...readJsonlTail(logf,150))
-    }
+    const history=readChatHistory(logf)
+    const log=history.rows
     const c = cfg()
     return {
       online,
@@ -553,8 +584,19 @@ const routes = {
       catchUpSec: c.chat?.catchUpSec ?? 45,
       shield: hb?.shield ?? null,
       log,
+      history:{nextBefore:history.nextBefore,hasMore:history.hasMore},
     }
   },
+  async 'GET /api/chat/history'(_,url){return readChatHistory(path.join(DATA,'chat.log'),{before:url.searchParams.has('before')?url.searchParams.get('before'):undefined,query:url.searchParams.get('q')||''})},
+  async 'GET /api/dice/status'(){const c=cfg();return {...await diceStatus(diceGroups(c)),theatreDefaults:await diceTheatreDefaults(),enabled:c.chat?.dice?.enabled===true,allowedGroups:diceGroups(c)}},
+  async 'POST /api/dice/theatre'(body){return {ok:true,theatre:await diceTheatre(cfg(),body)}},
+  async 'POST /api/dice/npc-memory'(body){return {ok:true,...await editNpcMemory(cfg(),body)}},
+  async 'GET /api/dice/npc-memory'(_,url){return npcMemory(cfg(),url.searchParams.get('group'),url.searchParams.get('name'))},
+  async 'GET /api/dice/scripts'(){return (await scripts()).status()},
+  async 'POST /api/dice/scripts'(body){const group=String(body.group??'');if(!diceGroups(cfg()).includes(group))throw Error('请选择白名单中的群');return {ok:true,...await (await scripts()).control(group,String(body.op??''),String(body.name??''),{uid:'webui'})}},
+  async 'POST /api/dice/roll'(body){const mod=await loadDiceModule();return {...mod.rollCommand(String(body.expression??'d100')),preview:true,sentQQ:false}},
+  async 'POST /api/dice/kp'(body){return {ok:true,keeper:await setDiceKeeper(cfg(),body)}},
+  async 'POST /api/dice/clear-players'(body){return {ok:true,...await clearDicePlayers(body.confirm)}},
 
   /* ── B 站扫码登录 ───────────────────────────────────── */
 
@@ -808,6 +850,7 @@ const routes = {
 }
 
 function serveStatic(req, res, pathname) {
+  if(['/dice-lab.html','/dice-controls.js'].includes(pathname)){try{const bytes=fs.readFileSync(path.join(DICE_ROOT,'public',pathname==='/dice-lab.html'?'index.html':'controls.js'));res.writeHead(200,{'content-type':pathname.endsWith('.js')?'application/javascript; charset=utf-8':'text/html; charset=utf-8','cache-control':'no-store'});return res.end(bytes)}catch{res.writeHead(404);return res.end('Dice plugin not installed')}}
   const rel = pathname === '/' ? '/index.html' : pathname
   const file = path.join(PUBLIC, path.normalize(rel).replace(/^(\.\.[/\\])+/, ''))
   if (!file.startsWith(PUBLIC) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
@@ -832,6 +875,12 @@ const server = http.createServer(async (req, res) => {
     const id=url.searchParams.get('id')||'';if(!/^[a-f0-9-]{36}$/.test(id))return json(res,404,{error:'试听音频不存在'})
     try{const bytes=fs.readFileSync(path.join(DATA,'voice-preview',id+'.wav'));res.writeHead(200,{'content-type':'audio/wav','cache-control':'no-store'});return res.end(bytes)}catch{return json(res,404,{error:'试听音频不存在'})}
   }
+  if(key==='GET /api/voice/lab/reference'){
+    try{const ref=cfg().chat?.voice?.localReferenceAudio,bytes=fs.readFileSync(ref);if(bytes.length>20*1024*1024)throw Error('size');const ext=path.extname(ref).toLowerCase(),type={'.wav':'audio/wav','.mp3':'audio/mpeg','.ogg':'audio/ogg','.flac':'audio/flac'}[ext];if(!type)throw Error('format');res.writeHead(200,{'content-type':type,'cache-control':'no-store','x-content-type-options':'nosniff'});return res.end(bytes)}catch{return json(res,404,{error:'当前参考音频不存在或格式不支持'})}
+  }
+  if(key==='GET /api/voice/lab/audio'){
+    try{const bytes=voiceLab.readAudio(url.searchParams.get('id'),url.searchParams.get('raw')==='1');res.writeHead(200,{'content-type':'audio/wav','cache-control':'no-store','x-content-type-options':'nosniff'});return res.end(bytes)}catch{return json(res,404,{error:'检测音频不存在或已过期'})}
+  }
   if(key==='GET /api/diary/download'){
     try{const r=diaryService.read(url.searchParams.get('file'));res.writeHead(200,{'content-type':'text/plain; charset=utf-8','content-disposition':`attachment; filename*=UTF-8''${encodeURIComponent(r.filename)}`,'cache-control':'no-store'});res.end(r.content)}catch{json(res,404,{error:'日记文件不存在或名称无效'})}
     return
@@ -844,7 +893,7 @@ const server = http.createServer(async (req, res) => {
   if (!handler) return json(res, 404, { error: `没有这个接口：${key}` })
 
   try {
-    const body = req.method === 'POST' ? await readBody(req,key==='POST /api/stickers'?Infinity:undefined) : {}
+    const body = req.method === 'POST' ? await readBody(req,key==='POST /api/stickers'?Infinity:key==='POST /api/dice/npc-memory'?4*1024*1024:undefined) : {}
     const t0 = Date.now()
     const data = await handler(body, url)
     console.log(`${key} ${Date.now() - t0}ms`)

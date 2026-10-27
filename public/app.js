@@ -725,6 +725,7 @@ document.addEventListener('keydown', (e) => {
 /* ── 群聊视图 ───────────────────────────────────────── */
 
 let chatPoll = null
+let chatHistoryBefore=null,chatHistoryMore=false,chatHistoryPinned=false,chatHistoryRows=[],chatHistoryQuery='',chatHistoryBusy=false,chatHistoryNick='青娥鱼',chatScrollLatest=false
 
 function switchView(view) {
   if(!['overview','review','chat','persona','settings'].includes(view))view='overview'
@@ -758,15 +759,19 @@ function chatRow(entry, nick) {
     ? (entry.admin ? '私聊 · 管理员' : '私聊 · 访客')
     : (entry.groupName ? `#${esc(entry.groupName)}` : `#${esc(entry.group ?? '')}`)
 
+  if(entry.type==='forward-read')return `<div class="chat-row sys">${time}<div class="chat-body"><span class="chat-meta">${where}</span><div class="chat-text">合并转发${entry.ok?'已读取':'读取失败'} · ${Number(entry.nodes)||0}条 · 含${Number(entry.images)||0}张图片${entry.truncated?' · 部分内容未展开':''}${entry.failed?' · 有子记录读取失败':''}</div></div></div>`
+
   if (entry.type === 'out') {
     return `<div class="chat-row out">${time}<div class="chat-body">
       <span class="chat-name">${esc(nick || '我')}</span><span class="chat-meta">${where}</span>
       <div class="chat-text">${esc(entry.text)}</div></div></div>`
   }
   if (entry.type === 'in') {
+    const q=entry.quote
+    const quote=q?`<div class="chat-meta">↪ ${esc(q.verified?(q.self?'回复本仙':`回复 ${q.name||q.uid}`):'引用对象未能核验')} · ${esc(q.text||'')} <small>#${esc(q.id)}</small></div>`:''
     return `<div class="chat-row">${time}<div class="chat-body">
       <span class="chat-name">${esc(entry.from || entry.uid || '')}</span><span class="chat-meta">${where}</span>
-      <div class="chat-text">${esc(entry.text)}</div></div></div>`
+      ${quote}<div class="chat-text">${esc(entry.text)}</div></div></div>`
   }
   if (entry.type === 'guest') {
     return `<div class="chat-row sys">${time}<div class="chat-body">
@@ -781,7 +786,7 @@ async function loadChat() {
   const log = $('#chat-log')
   try {
     const d = await api('/api/chat')
-      window.renderChatDiagnostics(d)
+      try{window.renderChatDiagnostics(d)}catch(e){console.warn('消息诊断显示失败，继续显示聊天记录')}
     const online = d.online
     $('#agent-dot').className = 'dot ' + (online ? 'on' : 'off')
     $('#agent-state').textContent = online ? d.connected === false ? 'QQ 断开 · 正在自动恢复 SnowLuma' : `${d.nick || 'agent'} 在线` : '未运行'
@@ -800,9 +805,12 @@ async function loadChat() {
     btn.disabled = !online
 
     const rows = (d.log || [])
-      .filter((e) => ['in', 'out', 'guest'].includes(e.type) || (e.type === 'error' && e.why))
+      .filter((e) => ['in', 'out', 'guest','forward-read'].includes(e.type) || (e.type === 'error' && e.why))
       .slice(-200)
 
+    chatHistoryNick=d.nick||'青娥鱼'
+    if(chatHistoryPinned){await refreshAgent();return}
+    chatHistoryRows=rows;chatHistoryBefore=d.history?.nextBefore??null;chatHistoryMore=Boolean(d.history?.hasMore);chatHistoryControls()
     if (!rows.length) {
       log.innerHTML = '<div class="chat-empty">还没有对话。让人在群里说句话，它就会出现在这里。</div>'
       return
@@ -810,7 +818,8 @@ async function loadChat() {
 
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60
     log.innerHTML = rows.map((e) => chatRow(e, d.nick)).join('')
-    if (atBottom) log.scrollTop = log.scrollHeight
+    if (atBottom||chatScrollLatest) log.scrollTop = log.scrollHeight
+    chatScrollLatest=false
   } catch (e) {
     $('#agent-dot').className = 'dot off'
     $('#agent-state').textContent = '控制台读不到状态'
@@ -818,6 +827,31 @@ async function loadChat() {
   }
   await refreshAgent()
 }
+
+function chatHistoryControls(){
+  $('#btn-chat-older').disabled=chatHistoryBusy||!chatHistoryMore
+  $('#btn-chat-search').disabled=chatHistoryBusy
+  $('#btn-chat-latest').disabled=chatHistoryBusy
+  $('#chat-history-note').textContent=(chatHistoryPinned?(chatHistoryQuery?'搜索结果':'历史浏览'):'实时记录')+` · ${chatHistoryRows.length}条`+(chatHistoryMore?' · 可继续向前加载':' · 已到记录起点')
+}
+async function loadOlderChat(search=false){
+ if(chatHistoryBusy)return
+ chatHistoryBusy=true;chatHistoryControls()
+ try{
+  const query=search?$('#chat-history-query').value.trim():chatHistoryQuery
+  const p=new URLSearchParams();if(query)p.set('q',query)
+  if(!search&&chatHistoryBefore!==null)p.set('before',String(chatHistoryBefore))
+  const data=await api('/api/chat/history?'+p)
+  const log=$('#chat-log')
+  chatHistoryPinned=true;chatHistoryQuery=query;chatHistoryRows=search?data.rows:[...data.rows,...chatHistoryRows];chatHistoryBefore=data.nextBefore;chatHistoryMore=data.hasMore
+  log.innerHTML=chatHistoryRows.length?chatHistoryRows.map(e=>chatRow(e,chatHistoryNick)).join(''):'<div class="chat-empty">未找到记录。可调整关键词，或继续向前查找。</div>'
+  log.scrollTop=0
+ }catch(e){toast('读取聊天历史失败：'+e.message,true)}finally{chatHistoryBusy=false;chatHistoryControls()}
+}
+$('#btn-chat-older').addEventListener('click',()=>loadOlderChat())
+$('#btn-chat-search').addEventListener('click',()=>loadOlderChat(true))
+$('#chat-history-query').addEventListener('keydown',e=>{if(e.key==='Enter')loadOlderChat(true)})
+$('#btn-chat-latest').addEventListener('click',()=>{chatHistoryPinned=false;chatHistoryQuery='';chatScrollLatest=true;$('#chat-history-query').value='';loadChat()})
 
 /** 群聊进程由控制台带着；这里看它的状态和原始输出 */
 async function refreshAgent() {

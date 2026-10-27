@@ -22,7 +22,7 @@ import { dirname, join } from 'node:path'
 
 /** 设置页允许改的字段（白名单 —— 前端传别的键一律丢掉） */
 export const UI_FIELDS = [
-  'enabled', 'dry', 'replyPatrolMinutes', 'qqEnabled', 'webUi', 'webUiPort',
+  'enabled', 'dry', 'replyPatrolMinutes', 'qqEnabled', 'diceEnabled', 'webUi', 'webUiPort',
   /* 刷B站（从 dsh-bili-scroll 移植过来的那一轮） */
   'scrollEnabled', 'scrollMinutes', 'scrollKeywords', 'scrollPerDay', 'scrollMention',
   'scrollPreferences', 'scrollTags', 'scrollMaxVideos',
@@ -62,6 +62,7 @@ export function clampUiPatch(raw) {
       case 'enabled':
       case 'dry':
       case 'qqEnabled':
+      case 'diceEnabled':
       case 'scrollEnabled':
       case 'webUi':
         out[k] = Boolean(v); break

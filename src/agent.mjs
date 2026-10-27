@@ -191,6 +191,7 @@ async function main() {
         groups: extra.groups, maxPerHour: extra.maxPerHour, shield: extra.shield,
         replyEveryMessage:extra.replyEveryMessage,queuedMessages:extra.queuedMessages,outputRate:extra.outputRate,catchUp:extra.catchUp,
         diagnostics:extra.diagnostics,connection:extra.connection,
+        mood:extra.mood,
         replyFormat:extra.replyFormat,
       }))
     } catch { /* 写不进去就算了，不影响聊天 */ }

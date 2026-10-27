@@ -11,7 +11,7 @@ const {composePrivateReply}=await import('../src/bili-private.mjs')
 const {composePatrolReply}=await import('../src/bili-patrol.mjs')
 const {composeBiliCommand}=await import('../src/bili-command.mjs')
 const {createChatSearch}=await import('../src/chat-search.mjs')
-const cfg={llm:{provider:'deepseek',apiKey:'fixture',model:'deepseek-chat',baseUrl:'https://fixture.test',requestTimeoutSec:60},qq:{groupIds:['880010002']},chat:{deepReply:{enabled:true},search:{enabled:true},speakChance:0,replyEveryMessage:false,outputRateOnly:true,contextMessages:0,shield:{enabled:false}},raw:{bili:{dedeUserId:'999'}}}
+const cfg={llm:{provider:'deepseek',apiKey:'fixture',model:'deepseek-chat',baseUrl:'https://fixture.test',requestTimeoutSec:60},qq:{groupIds:['887000004']},chat:{deepReply:{enabled:true},search:{enabled:true},speakChance:0,replyEveryMessage:false,outputRateOnly:true,contextMessages:0,shield:{enabled:false}},raw:{bili:{dedeUserId:'999'}}}
 const result={ok:true,source:'web',results:[{title:'测试公开资料',url:'https://source.test/reference',description:'离线背景资料，仅供测试。'}],pages:[]}
 let searches=0,bot
 const lookup=async intent=>{searches++;assert.ok(intent.query);return result}
@@ -36,7 +36,7 @@ try{
  const before=searches
  bot=createChat(cfg,{replyRandom:()=>0,stateFile:null,logFile:null,privateDir:dir,logger:{},lookup,readImages:async()=>{readImages++;return '【本条QQ图片观察】一只猫【图片观察结束】'},llmChat:async(_m,o)=>{models++;assert.equal(o.thinking,'enabled');assert.equal(o.reasoningEffort,'high');assert.match(o.user,/测试公开资料/);return {content:'本仙在听，接着说吧。'}},say:async()=>sent++,sayPrivate:async()=>sent++})
  bot.selfId('999')
- const event=(id,privateMessage=false)=>({post_type:'message',message_type:privateMessage?'private':'group',group_id:'880010002',user_id:'123',message_id:id,message:[{type:'image',data:{file:'fixture'}}]})
+ const event=(id,privateMessage=false)=>({post_type:'message',message_type:privateMessage?'private':'group',group_id:'887000004',user_id:'123',message_id:id,message:[{type:'image',data:{file:'fixture'}}]})
  await bot.handleEvent(event(1));assert.equal(searches,before);assert.equal(readImages,0);assert.equal(models,0)
  cfg.chat.speakChance=.6
  for(let i=0;i<10;i++)await bot.handleEvent(event(i+10))

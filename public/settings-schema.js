@@ -5,12 +5,15 @@ export const sections = {
   bili: 'B 站与主人 UP', guard: '发布闸门', whale: '深读工具',
 }
 export const fields = []
+// Shared by browser step validation and server integer validation.
+export const allowsDecimal=path=>/temperature|speakChance|Minutes|\.chance$/i.test(path)
 const add = (section, path, label, type, value, min, max, hint = '') => fields.push({ section, path, label, type, value, min, max, hint })
 const b = (s,p,l,v=true,h='') => add(s,p,l,'boolean',v,undefined,undefined,h)
 const n = (s,p,l,v,lo=0,hi=100000,h='') => add(s,p,l,'number',v,lo,hi,h)
 const t = (s,p,l,v='',h='') => add(s,p,l,'text',v,undefined,undefined,h)
 const a = (s,p,l,v=[],h='') => add(s,p,l,'list',v,undefined,undefined,h)
 const long = (s,p,l,h='') => add(s,p,l,'long','',undefined,undefined,h)
+add('chat','chat.groupSpeakChances','各群独立回复概率','group-probabilities',{},undefined,undefined,'每行“群号=概率”，例如123456=0.6。0不主动、1全部普通消息都回复；删除某群那一行即恢复全局概率。只影响非必回模式的普通群消息，@、令咒及其他原有定向规则不变；不影响语音或复读概率。')
 const secret = (s,p,l) => add(s,p,l,'secret','',undefined,undefined,'留空保留原凭据；支持 env:变量名。')
 b('runtime','runtime.enabled','DSH 插件启用',false,'由 DSH 宿主管理；独立 Agent 不读取此开关。')
 b('runtime','runtime.dry','DSH 预演模式',true,'开启后 DSH 不实发；独立 Agent 使用启动参数 --dry。')
@@ -39,6 +42,13 @@ secret('qq','qq.accessToken','HTTP Token'); secret('qq','qq.wsToken','WS Token')
 a('qq','qq.groupIds','群号',[],'每行一个或逗号分隔；保存时同步聊天白名单。')
 b('qq','qq.atAll','分享时 @全体',false); b('qq','qq.sendCard','发送视频卡片',false)
 b('chat','chat.enabled','聊天启用')
+b('chat','chat.dice.enabled','启用跑团骰子插件',false,'处理.r/.ra/.rh/.st/.sc等指令，使用程序随机骰点，不调用模型或语音；已启用群按原白名单，骰子指令不受普通接话概率影响。本群管理员可.dice off/on。代码位于airunning/dice-plugin，测试页/dice-lab.html。')
+b('chat','chat.repeat.enabled','QQ群随机复读',false,'只在已抽中接话或每条必回的普通群消息中抽签，命中后用原文/原表情替代AI回复，不再多发一条，不提高总接话概率。@指令、令咒、提问和明确任务仍正常处理；私聊不复读。')
+n('chat','chat.repeat.chance','已接话消息中复读的概率',.1,0,1,'0不复读，0.1表示符合条件且已决定接话的消息中约10%改为复读，1全部复读符合条件的消息。无需模型、识图或语音调用。')
+b('chat','chat.repeat.text','允许复读文字',true,'原样发送，不额外称呼或添加句号，也不转语音。')
+b('chat','chat.repeat.stickers','允许复读图片与表情包',true,'支持群友的图片、QQ基础表情和可用商城表情；保留消息中的文字与表情组合。@、引用、语音、文件、转发卡片不复制；图片过期时不补发。')
+n('chat','chat.repeat.cooldownSec','每群复读冷却（秒）',30,0,3600,'0关闭群冷却。相同内容两分钟内不重复复读；同表情继续采用表情管理中的同图间隔（默认5分钟）。普通输出仍受60条/分钟限制。')
+n('chat','chat.repeat.maxChars','复读文字最多字数',200,1,2000,'只复读短消息；超出时按原有聊天规则处理，不截断复读原文。')
 t('chat','chat.nick','昵称','青娥鱼'); a('chat','chat.aliases','可呼叫的别名')
 long('chat','chat.persona','人设正文'); long('chat','chat.taboo','禁忌与边界')
 a('chat','chat.admins','管理员 QQ'); a('chat','chat.adminTitles','管理员普通聊天称呼池',[],'仅普通聊天及补话使用；令咒请求临时使用专属称呼，不改变此池。')
@@ -51,8 +61,12 @@ a('chat','chat.search.engines','令咒网页搜索引擎',['bing','duckduckgo','
 b('chat','chat.search.youtube','令咒补查YouTube公开页面',true,'通过搜索引擎检索YouTube公开视频页面；只取得标题/简介时会注明，不能声称看完视频。')
 n('chat','chat.search.freshCacheMinutes','近期令咒检索缓存（分钟）',2,0,10,'0不复用完成结果；近期检索刷新页面并核对版本、发布日期及编辑时间，编辑时间不等于活动时间。')
 b('chat','chat.deepReply.enabled','所有回复深度思考并联网检索',false,'对已选中的QQ群/私聊、B站私信/评论及分享回复开启模型思考，并在生成前实际检索；不会把所有群消息变成必回。明确资料任务沿用B站五视频流程，日常文字和图片观察用网页检索补充背景。已取得本轮检索结果时不重复搜索；失败或无关不编造事实，不强行引用。用户明确不要联网时遵守；联网总开关仍有效。')
-b('chat','chat.learnedStyle.zhugeEnabled','学习诸葛亮的遣词造句与省略',false,'侧重具体用词、直答与反问的分寸、明确主语下的省略和对话承接，减少献策腔、奏表腔和固定套路。按语境提供原文句法观察与现代口语演示，不是固定回复。短句有省略时，可补充三分钟内同一人的两句与本仙实际上一答；上下文设0时仍不补。保留本仙身份、关系、字数和关键否定条件。关闭不删除书籍。')
-b('chat','chat.splitReplies','QQ长回复分条发送',true,'群聊和私聊按完整句意分成最多三条文字，间隔约0.8秒；短答、代码和表格保持整条。文字发送完后可按语境另发一个已有表情包。每条分别计入普通60条/分钟，管理员豁免。')
+b('chat','chat.learnedStyle.zhugeEnabled','学习诸葛亮的对答口吻与遣词',false,'学小说孔明的从容、机锋、轻文白口气与留余地，保留语气词和小废话，不硬压30字。已核验原文配合项目拟写的现代对答，按语境最多选一组，不是固定回复或历史原话。短句省略可补三分钟内同一人的两句及本仙实际上一答；上下文设0不补。保留本仙身份、关系、明确字数和关键条件，关闭不删除书籍。')
+b('chat','chat.mood.enabled','QQ情绪余韵与跨轮续接',false,'已发送回复后异步调用短小的内部情绪判断，每对象最多30秒一次；有额外模型用量。只保存数值和事件类别，访客私聊状态不落盘，不影响必回/概率/权限，也不改变语音情感。')
+n('chat','chat.mood.decayMinutes','情绪回稳半衰期（分钟）',90,5,1440,'情绪随时间回落，不因离线或没回复而惩罚用户。')
+n('chat','chat.mood.confidencePercent','情绪判断最低可信度（%）',65,0,100,'低于门槛不改变状态、不注入下一轮；有歧义可以无变化。')
+n('chat','chat.mood.judgeTimeoutSec','情绪判断超时（秒）',8,3,30,'异步判断不阻塞已发回复；失败不补发、不循环重试。')
+b('chat','chat.splitReplies','QQ长回复分条发送',true,'群聊和私聊按完整句意分成最多五条文字，间隔约0.8秒；短答、代码和表格保持整条，不为凑五段加字。文字发送完后可按语境另发一个已有表情包。每条分别计入普通60条/分钟，管理员豁免。')
 n('chat','chat.splitReplyChars','QQ回复开始分条的字数',90,40,500,'达到此长度才尝试按句末或长句分句边界拆开；找不到自然断点时保持整条，不强截句子。')
 b('chat','chat.voice.enabled','群聊短回复使用语音',false,'支持QQ原生音色或外部CosyVoice自定义音色。仅群聊；长文、令咒、检索结果和错误提示使用文字。语音成功后按现有表情库设置选图发送，遵守同图间隔；语音失败或回执不明时不重发、不补文字或表情。')
 add('chat','chat.voice.provider','语音提供方','select','qq-native',undefined,undefined,'可选择QQ原生、百炼云端或本地GPT-SoVITS。自定义合成后由QQ发送音频，不重复发布原生语音。')
@@ -78,8 +92,9 @@ b('chat','chat.voice.normalizeLoudness','语音响度增强',true,'对实际WAV�
 n('chat','chat.voice.boostDb','语音额外增益（分贝）',0,0,20,'在响度增强之后再提高音量，软限幅控制峰值；10分贝约为3.16倍振幅，峰值较多时实际响度增幅会略低。0关闭额外增益。')
 n('chat','chat.voice.loudnessTarget','语音目标响度（dBFS RMS）',-16,-24,-12,'越接近0越响；默认-16，实际增益受峰值限制。音量0仍为静音。')
 t('chat','chat.voice.instruction','CosyVoice说话语气','','可修改或留空关闭；汉字按2字符、其他按1字符，上限100；仅支持的模型发送。')
-n('chat','chat.voice.maxChars','语音回复最多字数',80,5,200,'只对完整回复判断，超过上限直接发文字，不截断原文。')
-n('chat','chat.voice.chance','短回复使用语音的概率',.35,0,1,'0关闭，0.35约35%，1表示符合条件的短回复全部使用语音。')
+n('chat','chat.voice.maxChars','每段语音最多字数',80,5,200,'完整回复可按句意拆成最多5段，每段不超过此值；五段放不下或没有合适断句则保留完整文字，不截断。')
+b('chat','chat.voice.splitLong','较长语音最多分五段',true,'按句号、分号或逗号等句意边界拆分，逐段确认后发送下一段。全部成功后才按原规则发表情；回执不明或中途失败立即停止，不重复已发部分。关闭后超过单段字数直接发文字。')
+n('chat','chat.voice.chance','短回复使用语音的概率',.35,0,1,'0关闭，0.35约35%，1表示符合条件的短回复全部使用语音；本条明确要求打字、文字或不要语音时优先发文字，不改全局开关。')
 add('chat','chat.voice.character','QQ 语音音色','select','lucy-voice-xueling',undefined,undefined,'使用QQ原生音色；某个群不支持时自动回退文字。')
 fields.at(-1).options=[{value:'lucy-voice-xueling',label:'元气少女'},{value:'lucy-voice-f38',label:'傲娇少女'},{value:'lucy-voice-f36',label:'温柔妹妹'},{value:'lucy-voice-female1',label:'邻家小妹'},{value:'lucy-voice-suxinjiejie',label:'酥心御姐'},{value:'lucy-voice-daji',label:'妲己'},{value:'lucy-voice-f37',label:'文艺少女'},{value:'lucy-voice-f34',label:'书香少女'},{value:'lucy-voice-female2',label:'暖心姐姐'},{value:'lucy-voice-laibixiaoxin',label:'小新'},{value:'lucy-voice-houge',label:'猴哥'},{value:'lucy-voice-lizeyan',label:'霸道总裁'},{value:'lucy-voice-male2',label:'磁性大叔'}]
 b('chat','chat.command.enabled','启用令咒请求',true,'以指定前缀开头可跳过本地任务意图限制；至少200字，路人令咒输出上限60000 token，管理员令咒200000 token。保留QQ发送频率、输入长度和B站风控策略；模型服务本身的上限仍有效。')
@@ -179,6 +194,7 @@ export const overlayMap = {
  'scroll.keywords':'scrollKeywords','scroll.tags':'scrollTags','scroll.preferences':'scrollPreferences',
  'scroll.perDay':'scrollPerDay','scroll.mentionName':'scrollMention','scroll.maxCandidates':'scrollMaxVideos',
  'qq.groupIds':'groups',
+ 'chat.dice.enabled':'diceEnabled',
  ...Object.fromEntries(['nick','persona','taboo','aliases','admins','quietHours','speakChance','minGapSec','maxPerHour','temperature','longFormTemperature','contextMessages','historyRestore'].map(k => [`chat.${k}`,k])),
  'chat.shield.longFormMaxOutputTokens':'longFormMaxOutputTokens',
 }

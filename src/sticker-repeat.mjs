@@ -8,7 +8,7 @@ export function createStickerRepeatLimit({dir,now=Date.now}) {
   const recent=(at,minutes)=>minutes>0&&Number.isFinite(at)&&now()-at<minutes*60000
   return {
     available(id,minutes){const s=read();return !recent(s.ids?.[id],minutes)},
-    claim(id,hash,minutes){
+    claim(id,hash,minutes,aliases=[]){
       fs.mkdirSync(dir,{recursive:true});let fd
       for(let attempt=0;attempt<2;attempt++){
         try{fd=fs.openSync(lock,'wx');fs.writeFileSync(fd,String(process.pid));break}catch(e){
@@ -21,8 +21,9 @@ export function createStickerRepeatLimit({dir,now=Date.now}) {
       if(fd===undefined)throw Object.assign(Error('表情使用记录正忙'),{stickerRepeatLimited:true})
       try{
         const s=read();s.ids??={};s.hashes??={}
-        if(recent(s.hashes[hash],minutes))throw Object.assign(Error('同一张表情包仍在重复使用间隔内'),{stickerRepeatLimited:true})
-        s.ids[id]=now();s.hashes[hash]=now()
+        const hashes=[hash,...aliases].filter(Boolean)
+        if(hashes.some(h=>recent(s.hashes[h],minutes)))throw Object.assign(Error('同一张表情包仍在重复使用间隔内'),{stickerRepeatLimited:true})
+        s.ids[id]=now();for(const h of hashes)s.hashes[h]=now()
         for(const map of [s.ids,s.hashes])for(const key of Object.keys(map))if(now()-map[key]>7*86400000)delete map[key]
         const temp=file+'.tmp';fs.writeFileSync(temp,JSON.stringify(s));fs.renameSync(temp,file)
       }finally{fs.closeSync(fd);fs.unlinkSync(lock)}

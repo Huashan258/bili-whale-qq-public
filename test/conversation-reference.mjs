@@ -18,9 +18,9 @@ try{
  assert.equal(referenceContext(cfg,'又不是人了',{uid:'123',recent,lastReply,now:now+181000}),'')
  assert.equal(referenceContext(cfg,'写一篇文章说明诸葛亮的历史地位',{uid:'123',recent,lastReply,now}),'')
  const prompts=[],sent=[]
- const c={llm:{provider:'fixture',apiKey:'fixture'},qq:{groupIds:['880010002']},chat:{...cfg,persona:QINGE_PERSONA,replyEveryMessage:true,outputRateOnly:true,admins:['123'],search:{enabled:false},shield:{enabled:false}}}
+ const c={llm:{provider:'fixture',apiKey:'fixture'},qq:{groupIds:['887000004']},chat:{...cfg,persona:QINGE_PERSONA,replyEveryMessage:true,outputRateOnly:true,admins:['123'],search:{enabled:false},shield:{enabled:false}}}
  bot=createChat(c,{stateFile:null,logFile:null,privateDir:dir,logger:{},llmChat:async(_m,o)=>{prompts.push(o);return {content:prompts.length===1?'才一点呀？':'哪句又说怪了？'}},say:async(_c,_g,m)=>sent.push(m)})
- const event=(text,id)=>({post_type:'message',message_type:'group',group_id:'880010002',user_id:'123',message_id:id,message:[{type:'text',data:{text}}]})
+ const event=(text,id)=>({post_type:'message',message_type:'group',group_id:'887000004',user_id:'123',message_id:id,message:[{type:'text',data:{text}}]})
  await bot.handleEvent(event('我的鱼像人了一点',1));await bot.handleEvent(event('好了又不是人了',2))
  assert.match(prompts[1].user,/短句承接线索/);assert.match(prompts[1].user,/我的鱼像人了一点/);assert.match(prompts[1].user,/本仙当时实际回复「才一点呀？/)
  assert.equal(c.chat.contextMessages,1,'不更改用户原上下文设置')

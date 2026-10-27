@@ -5,13 +5,13 @@ import path from 'node:path'
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'bili-thread-priority-'))
 process.env.BILI_WHALE_DATA=dir
 const {runOwnVideoReplies}=await import('../src/bili-own-comments.mjs')
-const cfg={raw:{bili:{dedeUserId:'880010003'}},masters:[{mid:'880010005'}],share:{biliGapSec:0,biliCommentPerDay:300}}
-const video={bvid:'BV1pjwazUET1',aid:'116229364777417',ownerMid:'880010003'}
+const cfg={raw:{bili:{dedeUserId:'887000005'}},masters:[{mid:'887000007'}],share:{biliGapSec:0,biliCommentPerDay:300}}
+const video={bvid:'BV1pjwazUET1',aid:'116229364777417',ownerMid:'887000005'}
 const now=Math.floor(Date.now()/1000)
-const roots=[{rpid:'root-other',mid:'880010005',text:'牢鱼',count:1,ctime:now},{rpid:'root-fish',mid:'880010005',text:'鱼',count:8,ctime:now}]
+const roots=[{rpid:'root-other',mid:'887000007',text:'牢鱼',count:1,ctime:now},{rpid:'root-fish',mid:'887000007',text:'鱼',count:8,ctime:now}]
 const initial={replied:{'root-other':{},'root-fish':{}},ownCommentCursor:{[video.bvid]:0},ownCommentThreads:{[video.bvid]:{'root-other':{...roots[0],checkedReplyCount:1},'root-fish':{...roots[1],checkedReplyCount:7}}}}
 let visited=[],target
-const opts={listComments:async()=>roots,listReplies:async(_,p)=>{visited.push(p.root);return [{rpid:'new-question',mid:'880010005',text:'肥鱼肥鱼我是谁',ctime:now}]},compose:async(_,p)=>{target=p.target;return '主人，你是示例管理员呀'},send:async()=>({rpid:'reply-ok'}),save:()=>{}}
+const opts={listComments:async()=>roots,listReplies:async(_,p)=>{visited.push(p.root);return [{rpid:'new-question',mid:'887000007',text:'肥鱼肥鱼我是谁',ctime:now}]},compose:async(_,p)=>{target=p.target;return '主人，你是示例管理员呀'},send:async()=>({rpid:'reply-ok'}),save:()=>{}}
 try {
   const dry=structuredClone(initial),snapshot=JSON.stringify(dry.ownCommentThreads)
   assert.equal((await runOwnVideoReplies(cfg,dry,video,{...opts,dry:true})).planned.length,1)

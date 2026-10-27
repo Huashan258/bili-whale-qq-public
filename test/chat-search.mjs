@@ -47,7 +47,7 @@ try {
   assert.ok(searchFallback({ok:false,results:[],reason:'冷却中'},'Master').replace(/\s/g,'').length>=200)
   const prompts=[],sent=[],queries=[]
   const cfg={llm:{provider:'fixture',apiKey:'fixture'},qq:{groupIds:['123456']},chat:{splitReplies:false,admins:['111111'],replyEveryMessage:true,outputRateOnly:true,contextMessages:0,shield:{maxOutputTokens:20000}}}
-  bot=createChat(cfg,{stateFile:null,logFile:null,privateDir:dir,logger:{},lookup:async i=>{queries.push(i);return result},llmChat:async(_cfg,p)=>{prompts.push(p);return {content:'Master，我不能实时查询B站。'}},say:async(_cfg,id,msg)=>sent.push(msg),sayPrivate:async(_cfg,id,msg)=>sent.push(msg)})
+  bot=createChat(cfg,{stateFile:null,logFile:null,privateDir:dir,replySleep:async()=>{},logger:{},lookup:async i=>{queries.push(i);return result},llmChat:async(_cfg,p)=>{prompts.push(p);return {content:'Master，我不能实时查询B站。'}},say:async(_cfg,id,msg)=>sent.push({channel:'group',msg}),sayPrivate:async(_cfg,id,msg)=>sent.push({channel:'private',msg})})
   for (const type of ['group','private']) {
     await bot.handleEvent({post_type:'message',message_type:type,group_id:'123456',user_id:'111111',message_id:type,message:[{type:'text',data:{text:'我以令咒命之：查询b站杀阶戴冠战的作业'}}]})
   }
@@ -55,18 +55,18 @@ try {
   assert.equal(prompts.length,4,'短答每条只补试一次')
   assert.ok(prompts.every(p=>p.user.includes(row.bvid)&&p.user.includes(row.title)))
   assert.match(prompts[1].system,/上一版只有\d+字/)
-  for(const msg of sent){const text=msg.at(-1).data.text;assert.match(text,/杀阶戴冠战攻略/);assert.doesNotMatch(text,/https?:/);assert.ok(text.replace(/\s/g,'').length>=200);assert.doesNotMatch(text,/未能生成满足200字/)}
+  for(const channel of ['group','private']){const text=sent.filter(s=>s.channel===channel).flatMap(s=>s.msg).filter(s=>s.type==='text').map(s=>s.data.text).join('');assert.match(text,/杀阶戴冠战攻略/);assert.doesNotMatch(text,/https?:/);assert.ok(text.replace(/\s/g,'').length>=200);assert.doesNotMatch(text,/未能生成满足200字/)}
   assert.equal(bot.status().diagnostics.recent.at(-1).search.count,1)
   assert.equal(JSON.stringify(bot.status().diagnostics).includes('杀阶戴冠战'),false,'诊断不额外记录查询正文')
   bot.stop()
   const autoQueries=[],autoPrompts=[],autoSent=[]
   const autoResult={ok:true,source:'web',results:[{title:'三角洲行动渡鸦活动资料（测试）',url:'https://fixture.test/raven',description:'离线测试资料，不能作为真实活动规则。'}],pages:[]}
-  bot=createChat(cfg,{stateFile:null,logFile:null,privateDir:dir,logger:{},lookup:async i=>{autoQueries.push(i);return autoResult},llmChat:async(_cfg,p)=>{autoPrompts.push(p);return {content:'根据本次取得的资料作评价。'.repeat(24)+' https://fixture.test/raven'}},say:async(_cfg,id,msg)=>autoSent.push(msg),sayPrivate:async(_cfg,id,msg)=>autoSent.push(msg)})
+  bot=createChat(cfg,{stateFile:null,logFile:null,privateDir:dir,replySleep:async()=>{},logger:{},lookup:async i=>{autoQueries.push(i);return autoResult},llmChat:async(_cfg,p)=>{autoPrompts.push(p);return {content:'根据本次取得的资料作评价。'.repeat(24)+' https://fixture.test/raven'}},say:async(_cfg,id,msg)=>autoSent.push({channel:'group',msg}),sayPrivate:async(_cfg,id,msg)=>autoSent.push({channel:'private',msg})})
   for(const type of ['group','private']) await bot.handleEvent({post_type:'message',message_type:type,group_id:'123456',user_id:'111111',message_id:'auto-'+type,message:[{type:'text',data:{text:'我以令咒命之：'+currentTask}}]})
   assert.equal(autoQueries.length,2)
   assert.ok(autoQueries.every(i=>i.query==='三角洲行动 渡鸦活动'&&i.source==='research'&&i.commandRead===true))
   assert.ok(autoPrompts.every(p=>p.user.includes('联网回答引导')&&p.user.includes('旧闻不能冒充最新消息')))
-  assert.equal(autoSent.length,2)
+  assert.equal(new Set(autoSent.map(s=>s.channel)).size,2)
   assert.equal(bot.status().search.automaticCommands,true)
   let repairUser='';let round=0
   await generateDirectReply(async(_m,p)=>{if(round++)repairUser=p.user;return {content:'短答。'}},cfg.llm,{system:'至少200字',user:'问题与已有资料',minReplyChars:200,strictMinReply:true})

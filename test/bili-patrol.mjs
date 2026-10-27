@@ -35,8 +35,8 @@ const okAsync = async (name, fn) => {
   try { await fn(); pass++; console.log(`  ✓ ${name}`) } catch (e) { fail++; console.error(`  ✗ ${name}\n    ${e.message}`) }
 }
 
-const SELF = '880010003'
-const MASTER = '880010005'
+const SELF = '887000005'
+const MASTER = '887000007'
 const now = Math.floor(Date.now() / 1000)
 
 const cfg = {

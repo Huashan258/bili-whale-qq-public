@@ -7,8 +7,9 @@
  */
 
 import { qqOutputLimit } from './qq-output-limit.mjs'
+import {recordScriptSend} from './trpg-scripts.mjs'
 
-async function call(cfg, action, params, {replyToUserId='',signal,beforeDispatch}={}) {
+async function call(cfg, action, params, {replyToUserId='',signal,beforeDispatch,scriptText}={}) {
   const admins=new Set((cfg.chat?.admins??[]).map(String))
   const adminReply=action==='send_private_msg'?admins.has(String(params.user_id)):admins.has(String(replyToUserId))
   if (!adminReply && (['send_group_msg','send_private_msg','send_msg','send_group_ai_record'].includes(action))) await qqOutputLimit.reserve()
@@ -30,11 +31,21 @@ async function call(cfg, action, params, {replyToUserId='',signal,beforeDispatch
   if (j.status === 'failed' || (j.retcode && j.retcode !== 0)) {
     throw Object.assign(new Error(`OneBot ${action} 失败：retcode=${j.retcode} ${j.wording ?? j.message ?? ''}`),{onebotRejected:true})
   }
+  // Recording failure must never turn a successful QQ delivery into a retry.
+  try{await recordScriptSend(action,params,j,scriptText)}catch(e){console.warn('[script] 已发送消息记录失败：'+e.message)}
   return j
 }
 
 export async function getImage(cfg,file,options={}) {
   return (await call(cfg,'get_image',{file},options)).data
+}
+
+/** Read-only lookup for a native QQ quoted-reply segment. */
+export async function getMessage(cfg,messageId,options={}) {
+  return (await call(cfg,'get_msg',{message_id:Number(messageId)},options)).data
+}
+export async function getForwardMessage(cfg,id,options={}) {
+  return (await call(cfg,'get_forward_msg',{id:String(id)},options)).data
 }
 
 /** QQ合成请求本身会发布到群；只调用一次带回执的发送动作，绝不再转发音频。 */
@@ -192,7 +203,8 @@ export async function getGroupMsgHistory(cfg, groupId, { count = 20, messageSeq 
 /** 私聊发一条。管理员对话走这条，不经过群。 */
 export async function sendPrivate(cfg, userId, message,context={}) {
   const segs = Array.isArray(message) ? message : [{ type: 'text', data: { text: String(message) } }]
-  await call(cfg, 'send_private_msg', { user_id: Number(userId), message: segs },context)
+  const result=await call(cfg, 'send_private_msg', { user_id: Number(userId), message: segs },context)
+  if(context.requireReceipt&&result.data?.message_id==null)throw Error('私聊投递未返回可核对回执，不自动重发')
   return 'private'
 }
 // An uncertain transport result must not trigger a second format send.

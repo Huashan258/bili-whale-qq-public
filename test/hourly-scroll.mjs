@@ -11,7 +11,7 @@ try{
  assert.equal(counts.byKeyword['?'],3);assert.equal(counts.byKeyword['？'],2);assert.equal(counts.byKeyword['妈妈'],3);assert.equal(reactionScore(counts),8)
  assert.equal(reactionCounts(['.*.*'],['.*']).total,2,'选词按字面而非正则')
  assert.equal(reactionCounts(['__proto__'],['__proto__']).total,1)
- const cfg={llm:{provider:'fixture',apiKey:'fixture'},qq:{groupIds:['880010002','880010006']},raw:{bili:{dedeUserId:'999'}},chat:{outputRateOnly:true},scroll:{hourlyReactionEnabled:true,reactionKeywords:['?','？','妈妈'],danmakuSample:1000,commentSample:20}}
+ const cfg={llm:{provider:'fixture',apiKey:'fixture'},qq:{groupIds:['887000004','887000008']},raw:{bili:{dedeUserId:'999'}},chat:{outputRateOnly:true},scroll:{hourlyReactionEnabled:true,reactionKeywords:['?','？','妈妈'],danmakuSample:1000,commentSample:20}}
  const actual=await readVideoReactions({video:{bvid:ids[0],cid:1,aid:2}},cfg,{request:async()=>new Response('<i><d p="1">?？妈妈</d><d p="2">妈妈</d></i>'),listComments:async()=>[{rpid:'1',mid:'123',text:'??'},{rpid:'1',mid:'123',text:'??'},{rpid:'2',mid:'999',text:'妈妈妈妈'}]})
  assert.equal(actual.complete,true);assert.equal(actual.score,6);assert.equal(actual.coverage.comments,1)
  let time=100000000,lastWatch=0,reads=0,model=0,claims=0
@@ -46,20 +46,20 @@ try{
  fs.writeFileSync(path.join(failureDir,'hourly-scroll.json'),JSON.stringify(previous))
  cfg.scroll.reactionKeywords=['妈妈']
  const attempts={}
- const uncertain={...deps,dataDir:failureDir,sendGroup:async(_c,id)=>{attempts[id]=(attempts[id]||0)+1;if(id==='880010002')throw Error('回执不明')}}
+ const uncertain={...deps,dataDir:failureDir,sendGroup:async(_c,id)=>{attempts[id]=(attempts[id]||0)+1;if(id==='887000004')throw Error('回执不明')}}
  await runHourlyScroll(cfg,{deps:uncertain},helpers)
  await runHourlyScroll(cfg,{deps:uncertain},helpers)
- assert.equal(attempts['880010002'],1);assert.equal(attempts['880010006'],1)
+ assert.equal(attempts['887000004'],1);assert.equal(attempts['887000008'],1)
  // 小时模式也读取B站推送开关；先写pending再发，同一获选视频多渠道只占一个额度。
  const syncDir=path.join(dir,'bili-sync');fs.mkdirSync(syncDir)
  fs.writeFileSync(path.join(syncDir,'hourly-scroll.json'),JSON.stringify(previous))
- cfg.scroll.biliPrivateEnabled=true;cfg.scroll.biliPrivateUsers=['880010005']
+ cfg.scroll.biliPrivateEnabled=true;cfg.scroll.biliPrivateUsers=['887000007']
  let groupSends=0,biliSends=0,shareClaims=0,message='',confirm=false
  const sync={...deps,dataDir:syncDir,policyStatus:async()=>({nextShareAt:shareClaims?time+3600000:0}),claimShare:async()=>shareClaims++,sendGroup:async()=>groupSends++,sendBiliPrivate:async(_c,id,text)=>{
-   biliSends++;message=text;assert.equal(id,'880010005')
-   assert.equal(readHourlyScroll(syncDir).receipts['bili-private:880010005'].status,'pending','请求前必须落盘回执占位')
+   biliSends++;message=text;assert.equal(id,'887000007')
+   assert.equal(readHourlyScroll(syncDir).receipts['bili-private:887000007'].status,'pending','请求前必须落盘回执占位')
    throw Error('回执不明')
- },listBiliPrivate:async()=>confirm?[{sender_uid:'999',receiver_id:'880010005',receiver_type:1,msg_status:0,msg_type:1,msg_key:'confirmed',timestamp:Date.now()/1000,content:JSON.stringify({content:message})}]:[]}
+ },listBiliPrivate:async()=>confirm?[{sender_uid:'999',receiver_id:'887000007',receiver_type:1,msg_status:0,msg_type:1,msg_key:'confirmed',timestamp:Date.now()/1000,content:JSON.stringify({content:message})}]:[]}
  await runHourlyScroll(cfg,{deps:sync},helpers)
  assert.equal(groupSends,2);assert.equal(biliSends,1);assert.equal(shareClaims,1)
  assert.equal(readHourlyScroll(syncDir).status,'sharing')

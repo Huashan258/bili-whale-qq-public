@@ -9,13 +9,13 @@ const {commandMode}=await import('../src/chat-command.mjs')
 const {createQQVideoReader,videoReference,videoCardText}=await import('../src/qq-video.mjs')
 const {chat}=await import('../src/llm.mjs')
 const {createSettingsStore}=await import('../src/settings.mjs')
-const good=Array.from({length:12},(_,i)=>`第${i+1}点，可以围绕问题具体讨论，结合实际例子说明观点，并区分资料与个人判断。`).join('\n')
+const good=Array.from({length:8},(_,i)=>`第${i+1}点，可以围绕问题具体讨论，结合实际例子说明观点，并区分资料与个人判断。`).join('\n')
 const cfg={qq:{groupIds:['123456']},llm:{provider:'fixture',apiKey:'fixture'},chat:{admins:['111111'],replyEveryMessage:true,outputRateOnly:true,shield:{enabled:true,maxOutputTokens:20000,adminMaxOutputTokens:1200},contextMessages:0}}
 const event=(text,id,admin=false,privateChat=false)=>({post_type:'message',message_type:privateChat?'private':'group',group_id:'123456',user_id:admin?'111111':'222222',message_id:id,sender:{nickname:'测试'},message:[{type:'text',data:{text}}]})
 let bot
 try {
   const seen=[],sent=[],read=[],random=[]
-  bot=createChat(cfg,{stateFile:null,logFile:null,privateDir:dir,logger:{},llmChat:async(_cfg,opts)=>{seen.push(opts);return {content:good,usage:{total:10}}},say:async(_cfg,id,msg,ctx)=>sent.push({id,msg,ctx}),sayPrivate:async(_cfg,id,msg)=>sent.push({id,msg}),readVideo:async ref=>{read.push(ref);return '\n视频素材：测试指定的视频，官方字幕中提到了策略。'},onVideoRequest:async()=>{random.push(1);return {sent:true}}})
+  bot=createChat(cfg,{stateFile:null,logFile:null,privateDir:dir,replySleep:async()=>{},lookup:async()=>({ok:false,source:'fixture',results:[]}),logger:{},llmChat:async(_cfg,opts)=>{seen.push(opts);return {content:good,usage:{total:10}}},say:async(_cfg,id,msg,ctx)=>sent.push({id,msg,ctx}),sayPrivate:async(_cfg,id,msg)=>sent.push({id,msg}),readVideo:async ref=>{read.push(ref);return '\n视频素材：测试指定的视频，官方字幕中提到了策略。'},onVideoRequest:async()=>{random.push(1);return {sent:true}}})
   bot.selfId('999999')
   await bot.handleEvent(event('@999999我以令咒命之：写一段代码并解释设计',1))
   assert.equal(seen.length,1,'令咒绕过本地代码拦截')
@@ -26,19 +26,20 @@ try {
   assert.doesNotMatch(seen[0].system,/不写代码、不写作业/)
   assert.equal(sent[0].ctx.replyToUserId,'222222','口令不提升QQ管理员身份')
   assert.ok(sent[0].msg.at(-1).data.text.startsWith('魔术师，'))
-  assert.ok(sent[0].msg.at(-1).data.text.replace(/\s/g,'').length>=200)
-  assert.ok(sent[0].msg.at(-1).data.text.length>260,'不被闲聊截断')
+  const groupText=sent.filter(s=>s.id==='123456').flatMap(s=>s.msg).filter(s=>s.type==='text').map(s=>s.data.text).join('')
+  assert.ok(groupText.replace(/\s/g,'').length>=200)
+  assert.ok(groupText.length>260,'分段合计不被闲聊截断')
   await bot.handleEvent(event('我以令咒命之：详细解释这个想法',2,true,true))
   assert.equal(seen[1].maxTokens,200000)
   assert.equal(seen[1].outputTokenCeiling,200000)
-  assert.ok(sent[1].msg[0].data.text.startsWith('Master，'))
+  assert.ok(sent.find(s=>s.id==='111111').msg[0].data.text.startsWith('Master，'))
   cfg.chat.command={prefix:'令咒：'};cfg.chat.adminTitle='御主';cfg.chat.guestTitle='来客'
   await bot.handleEvent(event('令咒：说说你的想法',3,false,true))
-  assert.ok(sent[2].msg[0].data.text.startsWith('来客，'),'配置即时读取')
+  assert.ok(sent.find(s=>s.id==='222222').msg[0].data.text.startsWith('来客，'),'配置即时读取')
   assert.equal(commandMode('引用：令咒：你好',cfg.chat).active,false)
   assert.equal(commandMode('我以令咒命之：你好',cfg.chat).active,false)
   assert.equal(commandMode('令咒：你好',{command:{enabled:false,prefix:'令咒：'}}).active,false)
-  await bot.handleEvent(event('推荐这个视频 https://www.bilibili.com/video/BV1pjwazUET1',4))
+  await bot.handleEvent({...event('推荐这个视频 https://www.bilibili.com/video/BV1pjwazUET1',4),message:[{type:'at',data:{qq:'999999'}},{type:'text',data:{text:'推荐这个视频 https://www.bilibili.com/video/BV1pjwazUET1'}}]})
   await bot.handleEvent(event('https://b23.tv/ezcftsB',5,false,true))
   assert.deepEqual(read,[{bvid:'BV1pjwazUET1'},{url:'https://b23.tv/ezcftsB'}])
   assert.equal(random.length,0,'指定链接不走随机推荐')
@@ -71,7 +72,7 @@ try {
   cfg.chat.contextMessages=4
   await bot.handleEvent(event('普通问候',57,true))
   await bot.handleEvent(event('令咒：请给出完整解释',58))
-  assert.match(seen.at(-1).user,/用「主人」/,'历史管理员称呼不能误用当前访客称呼')
+  assert.match(seen.at(-1).user,/本条发送者是普通群友/,'历史管理员称呼不能误用当前访客称呼')
   assert.match(seen.at(-1).system,/来客/)
   let body
   const mockFetch=async(_url,opts)=>{body=JSON.parse(opts.body);return new Response(JSON.stringify({choices:[{message:{content:'ok'}}]}))}
@@ -82,7 +83,7 @@ try {
   bot.stop()
   // 连续两次短答不冒充200字成功，也不无限重试。
   let attempts=0;const failed=[]
-  bot=createChat(cfg,{stateFile:null,logFile:null,privateDir:dir,logger:{},llmChat:async()=>{attempts++;return {content:'太短了。'}},sayPrivate:async(_cfg,id,msg)=>failed.push(msg)})
+  bot=createChat(cfg,{stateFile:null,logFile:null,privateDir:dir,replySleep:async()=>{},lookup:async()=>({ok:false,source:'fixture',results:[]}),logger:{},llmChat:async()=>{attempts++;return {content:'太短了。'}},sayPrivate:async(_cfg,id,msg)=>failed.push(msg)})
   await bot.handleEvent(event('令咒：回答问题',6,false,true))
   assert.equal(attempts,2);assert.match(failed[0][0].data.text,/未能生成满足200字/)
   bot.stop()

@@ -524,6 +524,15 @@ window.__ModuleLoader__.load({
         msgBox)
     }
 
+    function DicePanel(){
+      const [config,setConfig]=useState(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false)
+      useEffect(()=>{let alive=true;jget('/config').then(r=>{if(alive)setConfig(r.config)}).catch(e=>{if(alive)setMessage(e.message)});return()=>{alive=false}},[])
+      if(!config)return h('div',{'data-wh-page':''},message||'正在读取骰子设置…')
+      const url='http://127.0.0.1:'+Number(config.webUiPort||7788)+'/dice-lab.html'
+      const toggle=async()=>{setBusy(true);try{await jpost('/config',{diceEnabled:!config.diceEnabled});setConfig((await jget('/config')).config);setMessage('骰子开关已保存，即时生效')}catch(e){setMessage('保存失败：'+e.message)}finally{setBusy(false)}}
+      return h('div',{'data-wh-page':''},h('h2',null,'骰子与跑团'),h('label',{'data-wh-row':''},h('input',{type:'checkbox',checked:!!config.diceEnabled,disabled:busy,onChange:toggle}),'启用跑团骰子插件'),h('p',{'data-wh-note':''},'角色卡、共享NPC、多人互动、记忆编辑与剧本记录统一在airunning目录维护。'),h('a',{href:url,target:'_blank',rel:'noopener noreferrer'},'单独打开骰子工作台 ↗'),message?h('p',{'data-wh-note':''},message):null,h('iframe',{src:url,title:'骰子工作台',style:{width:'100%',height:'75vh',border:'1px solid #425064',borderRadius:16,marginTop:16}}))
+    }
+
     return {
       inject: ['slots'],
       apply(ctx) {
@@ -539,6 +548,10 @@ window.__ModuleLoader__.load({
         slots.inject('settings.section', () => slots.register(
           { name: 'settings.section', id: 'whale', order: 35, label: '群聊' },
           () => h(Panel),
+        ))
+        slots.inject('settings.section', () => slots.register(
+          {name:'settings.section',id:'whale-dice',order:36,label:'骰子'},
+          () => h(DicePanel),
         ))
       },
     }

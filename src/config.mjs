@@ -47,7 +47,7 @@ export function writeRawConfig(obj) {
 
 /**
  * 「主人」UP 名单。支持三种写法：
- *   "880010005"、{ mid: "880010005", name: "示例管理员" }、以及直接粘空间链接（自动抠 mid）。
+ *   "887000007"、{ mid: "887000007", name: "示例管理员" }、以及直接粘空间链接（自动抠 mid）。
  * autoComment=false 只影响「自动去B站发评论」，不影响称呼和放宽挑选。
  */
 export function normalizeMasters(v) {

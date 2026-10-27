@@ -8,6 +8,23 @@
     "node": ">=24"
   },
   "scripts": {
+    "test:dice": "node test/dice-plugin.mjs",
+    "test:scripts": "node test/trpg-scripts.mjs",
+    "test:dsh-dice": "node test/dsh-dice.mjs",
+    "test:group-probability": "node test/group-reply-probability.mjs",
+    "test:video-link-policy": "node test/video-link-policy.mjs",
+    "test:qq-forward": "node test/qq-forward.mjs",
+    "test:quoted-reply": "node test/qq-quoted-reply.mjs",
+    "test:chat-history": "node test/chat-history.mjs",
+    "test:voice-studio": "node test/voice-studio.mjs",
+    "test:qq-repeat": "node test/qq-repeat.mjs",
+    "test:voice-lab": "node test/voice-lab.mjs",
+    "test:actor": "node test/conversation-actor.mjs",
+    "test:short-interaction": "node test/short-interaction.mjs",
+    "test:voice-parts": "node test/voice-parts.mjs",
+    "test:mood": "node test/companion-mood.mjs",
+    "voice:local": "node scripts/local-voice.mjs",
+    "test:gpt-sovits": "node test/gpt-sovits.mjs",
     "test:voice-stickers": "node test/voice-stickers.mjs",
     "test:cosyvoice": "node test/cosyvoice.mjs",
     "test:wiki-question": "node test/wiki-question.mjs",
@@ -62,11 +79,9 @@
     "test:bili-inbox": "node test/bili-inbox.mjs",
     "test:diary": "node test/diary.mjs",
     "test:diary-auto": "node test/diary-auto.mjs",
+    "test:local-voice-watch": "node test/local-voice-watch.mjs",
     "test": "node scripts/test-public.mjs",
-    "test:public-release": "node test/public-release.mjs",
-    "voice:local": "node scripts/local-voice.mjs",
-    "test:gpt-sovits": "node test/gpt-sovits.mjs",
-    "test:local-voice-watch": "node test/local-voice-watch.mjs"
+    "test:public-release": "node test/public-release.mjs"
   },
   "license": "MIT"
 }

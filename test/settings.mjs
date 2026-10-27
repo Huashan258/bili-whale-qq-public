@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createSettingsStore, validatePatch } from '../src/settings.mjs'
 import { UI_FIELDS } from '../dsh-plugin/lib/uicfg.mjs'
-import { fields, overlayMap } from '../public/settings-schema.js'
+import { fields, overlayMap, allowsDecimal } from '../public/settings-schema.js'
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(),'whale-settings-'))
 try {
   const configFile=path.join(tmp,'config.json'), overlayFile=path.join(tmp,'whale-ui.json')
@@ -35,6 +35,15 @@ try {
   for (const patch of [{'chat.shield.dailyTokens':-1},{'chat.contextMessages':1.5},{'runtime.dry':'false'},{'share.replyPatrolMinutes':0.1},{'chat.quietHours':[25,8]},{'qq.wsUrl':'http://localhost'},{'__proto__.polluted':true},{'bili.masters':[ {mid:'1234',name:'a'}, {mid:'1234'} ]}]) assert.throws(()=>validatePatch(patch))
   assert.deepEqual(validatePatch({'chat.quietHours':[],'scroll.tags':[],'share.replyPatrolMinutes':0}),{'chat.quietHours':[],'scroll.tags':[],'share.replyPatrolMinutes':0})
   assert.deepEqual(validatePatch({'chat.longFormTemperature':.6}),{'chat.longFormTemperature':.6},'长文温度必须允许小数')
+  for(const key of ['chat.voice.chance','chat.repeat.chance']){assert.equal(allowsDecimal(key),true);assert.deepEqual(validatePatch({[key]:.65}),{[key]:.65});assert.throws(()=>validatePatch({[key]:1.01}))}
+  assert.equal(allowsDecimal('chat.voice.maxChars'),false)
+  const perGroup={'123456':0,'654321':.65}
+  const savedGroups=store.save({revision:store.snapshot().revision,patch:{'chat.groupSpeakChances':perGroup}})
+  assert.deepEqual(savedGroups.values['chat.groupSpeakChances'],perGroup)
+  assert.deepEqual(JSON.parse(fs.readFileSync(configFile)).chat.groupSpeakChances,perGroup)
+  for(const value of [[],null,{'123456':1.1},{'123456':'0.6'},{'bad':.6}])assert.throws(()=>validatePatch({'chat.groupSpeakChances':value}))
+  store.save({revision:store.snapshot().revision,patch:{'chat.groupSpeakChances':{}}})
+  assert.deepEqual(store.snapshot().values['chat.groupSpeakChances'],{})
   const unchanged=fs.readFileSync(configFile,'utf8')
   assert.throws(()=>store.save({revision:store.snapshot().revision,patch:{'chat.nick':'不会部分保存','chat.temperature':9}}))
   assert.equal(fs.readFileSync(configFile,'utf8'),unchanged)

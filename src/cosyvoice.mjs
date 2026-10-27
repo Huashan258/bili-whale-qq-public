@@ -1,5 +1,5 @@
 import {normalizeVoiceWav} from './voice-loudness.mjs'
-export const DEFAULT_VOICE_INSTRUCTION=''
+export const DEFAULT_VOICE_INSTRUCTION='语气温暖灵动，略带笑意和自信，像熟人聊天，重音和停顿自然，不要冷淡平读。'
 const MODELS=new Set(['cosyvoice-v3.5-flash','cosyvoice-v3.5-plus','cosyvoice-v3-flash','cosyvoice-v3-plus','cosyvoice-v2'])
 const fail=(message,reason='synthesis-failed')=>Object.assign(Error(message),{voiceNotSent:true,voiceReason:reason})
 export function cosyEndpoint(voice,operation='SpeechSynthesizer') {

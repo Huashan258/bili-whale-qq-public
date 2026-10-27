@@ -7,7 +7,7 @@
  *   剩下的才是本仓库真正能用的——见 whaleCap() / quotaView()。
  *
  * state.commentDaily 的结构（旧版是 byMid[mid] = 数字，读的时候顺手迁移）：
- *   { day: '2026-10-19', total: 4, byMid: { '880010005': { comment: 1, reply: 3 } } }
+ *   { day: '2026-10-19', total: 4, byMid: { '887000007': { comment: 1, reply: 3 } } }
  */
 
 const DAY_MS = 86_400_000

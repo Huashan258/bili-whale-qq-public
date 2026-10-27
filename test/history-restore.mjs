@@ -18,8 +18,8 @@ const check = (name, ok, extra = '') => {
   console.log(`${ok ? '✓' : '✗'} ${name}${extra ? '  ' + extra : ''}`)
 }
 
-const SELF = '881000004'
-const ADMIN = '880010001'
+const SELF = '3816283038'
+const ADMIN = '887000001'
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-hist-'))
 const logFile = path.join(tmp, 'chat.log')
 

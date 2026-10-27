@@ -100,3 +100,9 @@ npm run test:public-release
 ## 许可与致谢
 
 项目原创代码、文档与新绘制的几何鲸鱼SVG使用[MIT License](LICENSE)。参考的 `dsh-bili-whale` 与随附QRCode.js分别保留原MIT署名和完整许可，详见[第三方声明](THIRD_PARTY_NOTICES.md)。不分发私人版本的社区角色图片或账号素材。
+
+## 独立骰子与跑团插件（2026-10-28）
+
+骰子插件独立仓库：[airunning-dice](https://github.com/Huashan258/airunning-dice)，MIT。新部署使用git clone --recurse-submodules；已有克隆执行git submodule update --init --recursive。也可放置相邻airunning目录。
+
+包含角色卡、共享NPC与多人互动、文档记忆编辑和剧本归档；NPC称呼优先.nn角色名；.log off停止读取/保存聊天记忆。DSH设置新增“骰子”独立栏目。运行数据不随源码分发。

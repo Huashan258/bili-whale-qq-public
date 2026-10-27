@@ -1,9 +1,22 @@
-import {sendQQTextParts,sendQQReplySticker} from './qq-reply-parts.mjs'
+import {sendQQTextParts,sendQQReplySticker,QQ_REPLY_PART_LIMIT} from './qq-reply-parts.mjs'
+import {createCompanionMood} from './companion-mood.mjs'
 import { personaPrompt, relationshipPrompt, isQinge } from './persona.mjs'
 import { WEB_GROUNDING } from './web-reader.mjs'
 import { bookContext } from './book-memory.mjs'
 import { qqImages, createQQVision, VISION_GUARD } from './qq-vision.mjs'
-import { createQQVoiceSender, voiceEligible } from './qq-voice.mjs'
+import { createQQVoiceSender, voiceEligible, splitVoiceReply } from './qq-voice.mjs'
+import {setTimeout as pause} from 'node:timers/promises'
+import {shortInteraction,boundShortInteraction} from './reply-scope.mjs'
+import {textOnlyRequested,boundActorReply} from './conversation-actor.mjs'
+import {createVoiceTurnQueue} from './voice-turn-queue.mjs'
+import {createQqRepeater} from './qq-repeat.mjs'
+import {trainingPaused} from './voice-studio-config.mjs'
+import {createQuotedReplyReader,quoteSummary,quoteContext} from './qq-quoted-reply.mjs'
+import {createForwardReader,hasForwardContent,FORWARD_GUARD} from './qq-forward.mjs'
+import {explicitAtSelf,withoutVideoLinks,UNAT_VIDEO_GUIDE} from './video-link-policy.mjs'
+import {groupReplyChance} from '../public/group-probabilities.js'
+import {createDiceAdapter} from './dice-plugin.mjs'
+import {scripts,recordScriptEvent} from './trpg-scripts.mjs'
 import { createStickerPicker, createStickerStore,stickerRequest,stickerCapability } from './qq-stickers.mjs'
 import { searchIntent, createChatSearch, searchPrompt, searchFallback, groundedSearchReply } from './chat-search.mjs'
 import { commandMode, addressTitle, commandNote, addressReply } from './chat-command.mjs'
@@ -123,7 +136,7 @@ function appendLog(file = CHAT_LOG, obj) {
  * @ 保留，因为"在跟谁说话"是文字语义的一部分。
  */
 function segsToText(message) {
-  if (typeof message === 'string') return message
+  if (typeof message === 'string') return message.replace(/\[CQ:(?:reply|forward|node),[^\]]+\]/g,'').trim()
   if (!Array.isArray(message)) return ''
   const out = []
   for (const s of message) {
@@ -211,9 +224,13 @@ export function createChat(cfg, {
   onVideoRequest = null,
   readVideo = createQQVideoReader(),
   readImages = createQQVision(),
+  readQuoted = createQuotedReplyReader(),
+  readForward = createForwardReader(),
+  diceHandler = null,
   sendVoice: rawSendVoice = createQQVoiceSender(),
   voiceRandom = Math.random,
   replyRandom = Math.random,
+  repeatRandom = Math.random,
   stickerStore = createStickerStore(),
   stickerRandom = Math.random,
   replySleep,
@@ -227,7 +244,14 @@ export function createChat(cfg, {
   reconnectTimers = {set:setTimeout,clear:clearTimeout},
 } = {}) {
   const lifetime=new AbortController()
+  const dice=diceHandler??createDiceAdapter()
+  const repeater=createQqRepeater({file:logFile?path.join(path.dirname(logFile),'qq-repeat.json'):null,random:repeatRandom})
+  const voiceTurns=createVoiceTurnQueue();let voiceTurnSerial=0
+  const deliveryFormats=new Map()
+  const noteDelivery=(gid,uid,format)=>{deliveryFormats.set(`${gid}:${uid}`,format);if(deliveryFormats.size>256)deliveryFormats.delete(deliveryFormats.keys().next().value)}
   const diagnostics=createChatDiagnostics({file:diagnosticsFile})
+  const mood=createCompanionMood({file:logFile?path.join(path.dirname(logFile),'companion-mood.json'):null,signal:lifetime.signal,
+    judge:o=>rawLlmChat({...cfg.llm,requestTimeoutSec:10,maxRetries:0},{...o,json:true,maxTokens:350,temperature:.2,thinking:'disabled',replyPrepared:true,replyStylePrepared:true})})
   const llmChat=async(model,options)=>{
     options=await prepareDeepReply(model,{...options,signal:lifetime.signal,replyConfig:cfg,replyLookup:lookup,replyIsActive:()=>!stopped,replyOnProgress:fields=>{diagnostics.phase('search');diagnostics.searchResult(fields)},replyOnResearch:fields=>diagnostics.searchResult(fields)})
     return diagnostics.model(async()=>{
@@ -244,6 +268,21 @@ export function createChat(cfg, {
   const say=(...args)=>deliver(()=>rawSay(...args))
   const sayPrivate=(...args)=>deliver(()=>rawSayPrivate(...args))
   const sendVoice=(...args)=>deliver(()=>rawSendVoice(...args))
+  async function runDice(ev){
+    const controlText=Array.isArray(ev.message)?ev.message.filter(s=>s?.type==='text').map(s=>s.data?.text??'').join(''):String(ev.message??'')
+    const npcControl=/^[.。]npc\s+(?:use|stop|list)(?:\s|$)/i.test(controlText.trim())
+    if((c.dice?.enabled!==true||paused())&&!npcControl)return null
+    const uid=uidOf(ev),group=ev.message_type==='group'?String(ev.group_id):'',admin=isAdmin(uid)
+    const result=await dice(ev,{selfId,admin,allowedGroups:[...groupSet()],
+      generate:async task=>{if(stopped)throw Error('接话已停止');const budget=meter.check(uid,{isAdmin:admin});if(!budget.ok)throw Error('当前AI额度不足');const r=await diagnostics.model(()=>rawLlmChat({...cfg.llm,requestTimeoutSec:45,maxRetries:0},{system:task.system,user:task.user,json:task.json===true,maxTokens:Math.min(3000,task.maxChars*3+300),temperature:.7,thinking:'disabled',replyPrepared:true,replyStylePrepared:true,replyLengthPrepared:true,signal:lifetime.signal}));noteUsage(uid,r.usage,'dice-'+task.kind,admin);if(stopped||paused())throw Error('接话已暂停');return r.content},
+      sendGroup:text=>say(cfg,group,[{type:'text',data:{text}}],{replyToUserId:uid,signal:lifetime.signal}),
+      sendPrivate:text=>sayPrivate(cfg,uid,[{type:'text',data:{text}}],{signal:lifetime.signal,requireReceipt:true})})
+    if(!result?.handled)return null
+    diagnostics.selectionResult({forced:true,forcedReasons:['dice-command'],mode:'dice'})
+    if(result.why)diagnostics.skip(result.why)
+    if((group||admin)&&!result.privateSetup){appendLog(logFile,{type:'in',channel:group?'group':'private',...(group?{group}:{}),uid,admin,from:ev.sender?.card||ev.sender?.nickname||uid,text:segsToText(ev.message),id:ev.message_id,dice:true});if(result.spoke)appendLog(logFile,{type:'out',channel:group?'group':'private',...(group?{group}:{}),uid,text:result.text||'骰子指令已处理',dice:true,hidden:result.hidden===true})}
+    return result
+  }
   const pickSticker=createStickerPicker({store:stickerStore,random:stickerRandom,llmChat:(model,options)=>diagnostics.model(()=>rawLlmChat(model,options))})
   const noteSticker=fields=>{diagnostics.stickerResult(fields);logger.log?.('[chat] 表情包：'+fields.reason)}
   const lookupWithDiagnostics=async intent=>{
@@ -285,7 +324,7 @@ export function createChat(cfg, {
   }
   const rateOnly = () => c.outputRateOnly === true
   const alwaysReply = () => c.replyEveryMessage === true
-  const replyChance = () => {const n=Number(c.speakChance??.55);return Number.isFinite(n)?Math.min(1,Math.max(0,n)):.55}
+  const replyChance = gid => groupReplyChance(c,gid)
   const replyCredits=new Map()
   const lastGroupReplies=new Map()
   function selectOrdinaryReply(gid,chance) {
@@ -302,7 +341,7 @@ export function createChat(cfg, {
   const messageText = message => {
     const images=qqImages(message)
     const safe=typeof message==='string'?message.replace(/\[CQ:image,[^\]]+\]/g,''):message
-    return [segsToText(safe),videoCardText(safe),images.length?`【对方发送了${images.length}张图片】`:''].filter(Boolean).join('\n') || (Array.isArray(message) && message.some(s=>['face','record','video','json','xml','mface'].includes(s?.type)) ? '【对方发送了非文字消息，内容暂时不可读取】' : '')
+    return [segsToText(safe),videoCardText(safe),images.length?`【对方发送了${images.length}张图片】`:'',hasForwardContent(message)?'【对方发送了合并转发聊天记录】':''].filter(Boolean).join('\n') || (Array.isArray(message) && message.some(s=>['face','record','video','json','xml','mface'].includes(s?.type)) ? '【对方发送了非文字消息，内容暂时不可读取】' : '')
   }
   const minGapMs = () => rateOnly() ? 0 : (c.minGapSec ?? 75) * 1000
   const hourlyCap = () => rateOnly() ? 0 : c.maxPerHour ?? 20
@@ -351,7 +390,7 @@ export function createChat(cfg, {
     if (s.length > 400) return false          // 太长的多半是别的东西，不当请求
     return LONG_FORM.test(s)
   }
-  /** 他在话里点明的字数（400 字 / 100 字…）。拿到就写进提示里当硬指标 ——
+  /** 他在话里点明的字数（400 字 / 100 字…）。拿到就写进提示里当硬指标 —— 
    *  光说「写满」模型会偷懒，点名「至少 350 字」它才当回事。 */
   const askedChars = (t) => {
     const out = []
@@ -371,8 +410,7 @@ export function createChat(cfg, {
   /**
    * 长文请求时附在 user 提示里的一段「这次例外」声明。
    *
-   * 不放进 `CHAT_SYSTEM` 是因为那条 30 字的规则对**闲聊**还是对的 —— 长文是例外，
-   *   例外就该在该发生的那一次说，而不是把常态改掉。
+   * 长文的明确字数在本条强调，闲聊不再硬压30字。
    */
   /**
    * 长文备注：按他这次的具体要求现拼。
@@ -384,7 +422,7 @@ export function createChat(cfg, {
       ? `\n字数是目标长度，不是最低长度。${asks.map(n=>`${n}字的内容控制在${Math.max(20,Math.round(n*.9))}~${Math.round(n*1.1)}字`).join('；')}。不要明显超出，也不要用一句话打发。`
       : '\n    🔴 没点字数就按「有分量」写：400 字上下，别一句话打发。'
     return `这次${admin?'主人':'对方'}要的是完整内容，不是随口闲聊。\n` +
-      '    系统提示里「通常 30 字以内」这条**本次不适用**：别缩成一句，也别先答应下来不写。\n' +
+      '    本条须给完整正文，别缩成一句，也别先答应下来不写。\n' +
       '    🔴 「他列了几项」就写几项：比如「读后感 + 锐评张辽」是两项，两项都得有，' +
       '中间空一行分开，**绝不能只写第一项就收尾**。' +
       quota + '\n' +
@@ -394,6 +432,8 @@ export function createChat(cfg, {
   }
   const longSystem=(system,text)=>system.replace('像打字，不像写作文。一般一句，最多两句，通常 30 字以内。','这次是完整内容请求，按对方明确指定的字数回答；短句闲聊限制本次不适用。')
     .replace('一次最多三句，不列清单、不写小作文。对方问得具体就答得具体。','本次按要求给出完整内容，不受三句闲聊限制。')
+    .replace('像当面闲谈，长短随话意；接梗可以半句，谈得兴起可多说两三句，不硬压30字。具体问题与用户字数格式优先。','本次按指定字数完整作答，不以闲谈短答代替内容。')
+    .replace('闲聊长短随话意，不硬限句数；接梗可以半句，谈得兴起可多说几句。对方问得具体就答得具体，明确字数格式优先。','本次按指定字数完整作答，不受闲聊句数影响。')
     +'\n本次优先完整回答目标问题，按要求写作，避免无关角色联想与不通顺串词。'+(askedChars(text).length?`目标字数：${askedChars(text).join('、')}字。`:'')
 
   const state = loadChatState(stateFile)
@@ -567,6 +607,7 @@ export function createChat(cfg, {
     const buf = groupBuffer(gid)
     const pendingEntry = buf.find((m) => String(m.id) === String(messageId))
     const title = pendingEntry && isAdmin(pendingEntry.uid) ? nextAdminTitle(pendingEntry.uid) : ''
+    const actor=pendingEntry?{uid:pendingEntry.uid,name:pendingEntry.name,admin:isAdmin(pendingEntry.uid),botId:selfId,botName:c.nick,voiceEnabled:c.voice?.enabled===true,adminTitles:adminTitles(),otherNames:buf.filter(m=>String(m.uid)!==String(pendingEntry.uid)&&!isSelfEntry(m)).map(m=>m.name),textOnly:true}:null
     const lines = clipLines(tailCtx(buf, contextN(), pendingEntry).map((m) => ({
       name: m.name,
       text: m.text,
@@ -577,8 +618,10 @@ export function createChat(cfg, {
     try {
       const r = await llmChat(cfg.llm, {
         replyTask:pendingEntry?.text??lines.at(-1)?.text??'',
-        system: fillSystem(CHAT_SYSTEM + CATCHUP_SYSTEM, c, {admin:Boolean(pendingEntry && isAdmin(pendingEntry.uid))}) + commandNote({active:false,adminTitle:addressTitle(c,true),guestTitle:addressTitle(c,false)},title),
-        user: catchUpPrompt({ groupName: groupNames.get(gid) ?? gid, lines, title:title||adminTitles()[0], titles: adminTitles() }),
+        replyVideoLinksAllowed:pendingEntry?.atSelf===true,
+        replyActor:actor,
+        system: fillSystem(CHAT_SYSTEM + CATCHUP_SYSTEM, c, {admin:Boolean(pendingEntry && isAdmin(pendingEntry.uid))}) + commandNote({active:false,adminTitle:addressTitle(c,true),guestTitle:addressTitle(c,false)},title)+(pendingEntry?.atSelf!==true&&withoutVideoLinks(pendingEntry?.text).blocked?UNAT_VIDEO_GUIDE:''),
+        user: catchUpPrompt({ groupName: groupNames.get(gid) ?? gid, lines, title, titles: actor?.admin?adminTitles():[] }),
         json: true,
         temperature: c.temperature ?? 0.8,
         maxTokens: shieldCfg(cfg).maxOutputTokens,
@@ -595,7 +638,7 @@ export function createChat(cfg, {
     appendLog(logFile, { type: source === 'history' ? 'history' : 'catchup', channel: 'group', group: gid, speak: Boolean(verdict.speak), reply: verdict.reply, why: verdict.why })
 
     if (!verdict.speak) return { spoke: false, why: `${source === 'history' ? '恢复追话' : '补话'}放弃：${verdict.why ?? ''}` }
-    let reply = addressReply(cleanReply(verdict.reply, c.nick ?? ''),title,{active:false,adminTitle:addressTitle(c,true),guestTitle:addressTitle(c,false)})
+    let reply = addressReply(cleanReply(boundActorReply(verdict.reply,actor,pendingEntry?.text??''), c.nick ?? ''),title,{active:false,adminTitle:addressTitle(c,true),guestTitle:addressTitle(c,false)})
     if (!reply) return null
 
     const sent = await sendReply(gid, messageId, reply, pendingEntry?.uid)
@@ -651,7 +694,7 @@ export function createChat(cfg, {
       if (!text) continue
       const ts = Math.floor(new Date(r.ts ?? Date.now()).getTime() / 1000)
       if (r.type === 'in') {
-        out.unshift({ name: r.from ?? r.uid ?? '某人', text, ts, id: r.id ?? `log-in-${i}`, uid: String(r.uid ?? ''), self: false })
+        out.unshift({ name: r.from ?? r.uid ?? '某人', text, ts, id: r.id ?? `log-in-${i}`, uid: String(r.uid ?? ''), self: false,atSelf:r.atSelf===true })
       } else if (r.type === 'out') {
         out.unshift({ name: c.nick ?? '我', text, ts, id: `log-out-${i}`, uid: String(selfId ?? ''), self: true, out: true })
       }
@@ -675,6 +718,7 @@ export function createChat(cfg, {
         id,
         uid,
         self: Boolean(selfId) && uid === String(selfId),
+        atSelf:explicitAtSelf(m.message??m.raw_message,selfId),
       })
     }
     return out
@@ -752,27 +796,36 @@ export function createChat(cfg, {
 
   /* ── 群聊 ───────────────────────────────────────────── */
 
-  async function sendReply(gid, messageId, text, replyUid='',allowVoice=false,sticker=null) {
+  async function sendReply(gid, messageId, text, replyUid='',allowVoice=false,sticker=null,voiceTurn=null) {
     if(stopped)return false
     const chooseSticker=typeof sticker==='function'?sticker:sticker?async()=>sticker:null
-    if(allowVoice && voiceEligible(text,c.voice,voiceRandom)) {
-      let voiceSent=false
-      try {
-        await sendVoice(text,gid,cfg,{signal:lifetime.signal,replyToUserId:replyUid,onSynthesis:fields=>diagnostics.voiceResult({format:'voice',reason:'synthesized',...fields})})
-        diagnostics.voiceResult({format:'voice',reason:'sent'})
-        voiceSent=true
-      }catch(e) {
-        if(e.voiceNotSent){diagnostics.voiceResult({format:'text',reason:e.voiceReason||'synthesis-failed'});logger.warn?.('[chat] 云端语音未进入QQ发送，改发文字')}
-        else{diagnostics.voiceResult({format:'voice',reason:'send-unconfirmed'});logger.error?.('[chat] 语音发送失败或回执不明，不再补发语音或文字');return false}
+    if(voiceTurn||allowVoice && !(c.voice?.provider==='gpt-sovits'&&trainingPaused()) && voiceEligible(text,c.voice,voiceRandom)) {
+      if(!voiceTurn)return voiceTurns.run(gid,()=>sendReply(gid,messageId,text,replyUid,true,sticker,`${process.pid}-${Date.now()}-${++voiceTurnSerial}`),lifetime.signal)
+      const parts=splitVoiceReply(text,c.voice),sent=[]
+      for(let i=0;i<parts.length;i++){
+        try {
+          lifetime.signal.throwIfAborted()
+          if(i)await (replySleep??(ms=>pause(ms,undefined,{signal:lifetime.signal})))(800)
+          lifetime.signal.throwIfAborted()
+          await sendVoice(parts[i],gid,cfg,{signal:lifetime.signal,replyToUserId:replyUid,turnId:voiceTurn,partIndex:i,partCount:parts.length,onSynthesis:fields=>diagnostics.voiceResult({format:'voice',reason:'synthesized',...fields})})
+          sent.push(parts[i]);noteDelivery(gid,replyUid,'voice');diagnostics.voiceResult({format:'voice',reason:'sent'})
+        }catch(e) {
+          diagnostics.partsResult({parts:sent.length,planned:parts.length,complete:false})
+          if(e.voiceNotSent&&!sent.length&&!stopped){diagnostics.voiceResult({format:'text',reason:e.voiceReason||'synthesis-failed'});logger.warn?.('[chat] 语音未进入QQ发送，改发文字');break}
+          diagnostics.voiceResult({format:'voice',reason:sent.length?'partial-stopped':'send-unconfirmed'})
+          logger.error?.('[chat] 语音分段发送未完成，停止后续，不重发已发送或回执不明的内容')
+          return sent.join('')||false
+        }
       }
-      if(voiceSent){
+      if(sent.length===parts.length){
+        diagnostics.partsResult({parts:sent.length,planned:parts.length,complete:true})
         await sendQQReplySticker({chooseSticker,signal:lifetime.signal,isActive:()=>!stopped,wait:replySleep,onSticker:noteSticker,
           send:(segments,index,context)=>say(cfg,gid,segments,{replyToUserId:replyUid,...context}),
           onError:()=>logger.warn?.('[chat] 语音已发送，后续表情包未发送或回执未确认，不重发语音')})
         return text
       }
     }
-    const result=await sendQQTextParts(text,{config:c,signal:lifetime.signal,isActive:()=>!stopped,wait:replySleep,onSticker:noteSticker,chooseSticker,
+    const result=await sendQQTextParts(text,{config:{...c,omitShortPeriod:isQinge(c)},task:groupBuffer(gid).find(m=>String(m.id)===String(messageId))?.text??'',signal:lifetime.signal,isActive:()=>!stopped,wait:replySleep,onSticker:noteSticker,chooseSticker,
       send:async(segments,index,context={})=>{
         const quote=index===0&&c.quote!==false&&messageId!==undefined&&messageId!==null
         const segs=quote?[{type:'reply',data:{id:String(messageId)}},...segments]:segments
@@ -782,6 +835,7 @@ export function createChat(cfg, {
         }
       },onError:()=>logger.error?.('[chat] 分条发送失败或回执未确认，停止后续发送，不重发已发送内容')})
     diagnostics.partsResult(result)
+    if(result.text)noteDelivery(gid,replyUid,'text')
     return result.text||false
   }
 
@@ -807,7 +861,11 @@ export function createChat(cfg, {
     const gid = String(ev.group_id)
     const uid = uidOf(ev)
     const name = ev.sender?.card || ev.sender?.nickname || uid
-    const images = qqImages(ev.message)
+    try{await recordScriptEvent(ev)}catch(e){logger.warn?.('[script] 聊天记录保存失败：'+e.message)}
+    const scriptResult=await (await scripts()).handle(ev,{admin:isAdmin(uid),allowedGroups:[...groupSet()],sendGroup:text=>say(cfg,gid,[{type:'text',data:{text}}],{replyToUserId:uid,signal:lifetime.signal}),sendPrivate:text=>sayPrivate(cfg,uid,[{type:'text',data:{text}}],{signal:lifetime.signal})});if(scriptResult.handled)return scriptResult
+    const diceResult=await runDice(ev);if(diceResult)return diceResult
+    const quote=await readQuoted(ev,cfg,selfId,{signal:lifetime.signal})
+    const images = [...qqImages(ev.message),...(quote?.verified?quote.images??[]:[])]
     const raw = messageText(ev.message)
     // 意图识别只看用户输入，图片/媒体占位说明不能触发“发视频”等必回入口。
     const requestText=segsToText(typeof ev.message==='string'?ev.message.replace(/\[CQ:image,[^\]]+\]/g,''):ev.message)
@@ -815,11 +873,14 @@ export function createChat(cfg, {
 
     const stickerRequested=stickerRequest(requestText)
     const command = commandMode(raw, c, selfId)
-    const video = videoReference(raw)
-    const lookupIntent = !video ? searchIntent(command.active?command.text:raw,{enabled:c.search?.enabled!==false,command:command.active}) : null
-    const forcedReasons=[stickerRequested?'sticker-request':'',command.active?'command':'',video?'video-link':'',lookupIntent?'search':'',onVideoRequest&&wantsVideo(requestText)?'video-request':'',mentionedSelf(Array.isArray(ev.message)?ev.message:requestText,selfId,aliasList())?'mention':''].filter(Boolean)
+    const videoLinksAllowed=explicitAtSelf(ev.message,selfId)
+    const videoLinkIgnored=!videoLinksAllowed&&withoutVideoLinks(raw).blocked
+    const video = videoLinksAllowed?videoReference(raw):null
+    const lookupText=videoLinksAllowed?(command.active?command.text:raw):withoutVideoLinks(command.active?command.text:raw).text
+    const lookupIntent = !video ? searchIntent(lookupText,{enabled:c.search?.enabled!==false,command:command.active}) : null
+    const forcedReasons=[quote?.self?'reply-to-self':'',stickerRequested?'sticker-request':'',command.active?'command':'',video?'video-link':'',lookupIntent?'search':'',videoLinksAllowed&&onVideoRequest&&wantsVideo(requestText)?'video-request':'',mentionedSelf(Array.isArray(ev.message)?ev.message:requestText,selfId,aliasList())?'mention':''].filter(Boolean)
     const forced = forcedReasons.length>0
-    diagnostics.selectionResult({forced,forcedReasons,chance:replyChance(),mode:alwaysReply()?'every-message':'probability'})
+    diagnostics.selectionResult({forced,forcedReasons,...(videoLinkIgnored?{videoLinkRead:'ignored-no-at'}:{}),...(quote?{replyTo:quote.id,replyVerified:quote.verified,replyToSelf:quote.self}:{}),chance:replyChance(gid),mode:alwaysReply()?'every-message':'probability'})
     const admin = isAdmin(uid)
 
     // 0) 用量熔断：这个人最近烧太多，先冷着。连内容都不看——看完就已经花钱了。
@@ -855,17 +916,17 @@ export function createChat(cfg, {
     }
 
     const buf = groupBuffer(gid)
-    buf.push({ name, text, ts: ev.time ?? Math.floor(Date.now() / 1000), id: ev.message_id, uid })
+    buf.push({ name, text, ts: ev.time ?? Math.floor(Date.now() / 1000), id: ev.message_id, uid,atSelf:videoLinksAllowed })
     if (buf.length > 30) buf.splice(0, buf.length - 30)
 
     groupNames.set(gid, ev.group_name ?? groupNames.get(gid) ?? '')
-    appendLog(logFile, { type: 'in', channel: 'group', group: gid, groupName: groupNames.get(gid), from: name, uid, admin, text, id: ev.message_id })
+    appendLog(logFile, { type: 'in', channel: 'group', group: gid, groupName: groupNames.get(gid), from: name, uid, admin, text, id: ev.message_id,atSelf:videoLinksAllowed,quote:quoteSummary(quote) })
 
     if (!alwaysReply() && !rateOnly() && !forced && inQuietHours(c.quietHours)) {diagnostics.skip('静默时段');return null}
 
     // One decision only: a hit commits this message to a real reply, including short text.
     if (!forced && !alwaysReply()) {
-      const chance=replyChance()
+      const chance=replyChance(gid)
       if(!selectOrdinaryReply(gid,chance)){diagnostics.skip('接话概率未命中');return null}
     }
 
@@ -878,8 +939,27 @@ export function createChat(cfg, {
       return null
     }
 
+    let mediaRepeatMinutes=5;if(c.repeat?.enabled===true)try{mediaRepeatMinutes=stickerStore.snapshot()?.repeatMinutes??5}catch{}
+    const repeat=repeater.select(ev.message,{groupId:gid,settings:c.repeat,mediaRepeatMinutes,
+      excluded:forced||wantsLongForm(requestText)||/[?？]|为什么|怎么|如何|请问|能不能|可不可以|(?:吗|么|是谁|是什么|在哪|多少|几点)[。！!\s]*$|^(?:请|麻烦|帮我|给我|能否|可否)/.test(requestText),bot:ev.sender?.is_bot===true||ev.sender?.bot===true||ev.is_bot===true})
+    if(repeat){
+      diagnostics.repeatResult({kind:repeat.kind,state:'selected'})
+      try{
+        await say(cfg,gid,repeat.segments,{signal:lifetime.signal,replyToUserId:uid,beforeDispatch:()=>{repeat.claim();for(const md5 of new Set(repeat.imageMD5))stickerStore.reserveUse?.('echo:'+md5,'qq-md5:'+md5)}})
+        repeater.sent();diagnostics.repeatResult({kind:repeat.kind,state:'sent'});clearPending(gid)
+        lastSpoke.set(gid,Date.now());lastSpokeMsg.set(gid,ev.message_id);state.spoken.push(Date.now());saveChatState(state,stateFile)
+        const echoed=repeat.content||(repeat.kind==='sticker'?'【复读群友表情】':'')
+        lastGroupReplies.set(gid,{uid,text:echoed,at:Date.now()});noteDelivery(gid,uid,repeat.kind==='text'?'text':'image')
+        appendLog(logFile,{type:'out',channel:'group',group:gid,groupName:groupNames.get(gid),uid,replyTo:ev.message_id,text:echoed,repeat:true,repeatKind:repeat.kind})
+        return {spoke:true,text:echoed,repeated:true,repeatKind:repeat.kind}
+      }catch(e){
+        if(!e.repeatLimited&&!e.stickerRepeatLimited){repeater.failed();diagnostics.repeatResult({kind:repeat.kind,state:'send-unconfirmed'});return {spoke:false,why:'复读发送失败或未确认，不补发'}}
+        diagnostics.repeatResult({kind:repeat.kind,state:'cooldown'})
+      }
+    }
+
     // 群友点播：这条优先于聊天判断，但要单独控频，免得被刷
-    if (!images.length && !video && !lookupIntent && !command.active && onVideoRequest && wantsVideo(text)) {
+    if (videoLinksAllowed && !images.length && !video && !lookupIntent && !command.active && onVideoRequest && wantsVideo(text)) {
       const last = lastVideoAt.get(gid) ?? 0
       if (Date.now() - last < (c.videoRequestCooldownSec ?? 1800) * 1000) {
         if(alwaysReply())return finishGroupReply(gid,ev.message_id,uid,'视频推荐还在冷却中，先陪你聊。')
@@ -915,24 +995,30 @@ export function createChat(cfg, {
     const baseCap = long ? (admin?Math.max(sc.adminMaxOutputTokens,longFormCap()):Math.min(sc.maxOutputTokens,Math.max(600,askedTotal*2+200))) : (admin ? (sc.adminMaxOutputTokens ?? 1200) : sc.maxOutputTokens)
     const outCap = command.active ? (admin?200000:60000) : lookupIntent ? (admin?shieldCfg(cfg).adminMaxOutputTokens:shieldCfg(cfg).maxOutputTokens) : baseCap
     const videoContext = video ? await readVideo(video, cfg, {isActive:()=>!stopped,commandRead:command.active}) : ''
-    const imageContext = images.length ? await readImages(images,cfg,{signal:lifetime.signal,onUsage:usage=>noteUsage(uid,usage,ev.message_type==='private'?'private':'group',admin)}) : ''
+    const forward=await readForward([ev.message,...(quote?.verified?[quote.sourceMessage]:[])],cfg,{signal:lifetime.signal})
+    if(forward.summary){diagnostics.forwardResult(forward.summary);appendLog(logFile,{type:'forward-read',channel:'group',group:gid,id:ev.message_id,...forward.summary})}
+    const imageContext = images.length ? await readImages(images,cfg,{signal:lifetime.signal,onUsage:usage=>noteUsage(uid,usage,'group',admin)}) : ''
+    const forwardImages=forward.images.length?await readImages(forward.images,cfg,{signal:lifetime.signal,onUsage:usage=>noteUsage(uid,usage,'group-forward',admin)}):''
+    const forwardContext=forward.context+(forwardImages?'\n【以下图片观察来自上述合并转发记录，不是当前用户单独发送的新图片】'+forwardImages:'')
     let searchResult=null
     if(lookupIntent)searchResult=await lookupWithDiagnostics(lookupIntent)
     const searchContext=searchResult?searchPrompt(searchResult):''
     const temp = long ? longFormTemp() : (c.temperature ?? 0.8)
     const title = command.active ? addressTitle(c, admin) : admin ? nextAdminTitle(uid) : ''
-    const lines = clipLines(tailCtx(buf, contextN()).map((m) => ({ name: m.name, text: m.text, self: isSelfEntry(m), admin: isAdmin(m.uid) })))
+    const lines = clipLines(tailCtx(buf, contextN()).map((m) => ({ uid:m.uid, name: m.name, text: m.text, self: isSelfEntry(m), admin: isAdmin(m.uid) })))
+    const actor={uid,name,admin,botId:selfId,botName:c.nick??'青娥鱼',previousReplyFormat:deliveryFormats.get(`${gid}:${uid}`)??'unknown',voiceEnabled:c.voice?.enabled===true,mentions:Array.isArray(ev.message)?ev.message.filter(m=>m.type==='at').map(m=>String(m.data?.qq??'')):[],adminTitles:adminTitles(),otherNames:lines.filter(l=>!l.self&&String(l.uid)!==uid).map(l=>l.name),textOnly:textOnlyRequested(requestText)}
     const requestedSticker=stickerRequested?await pickSticker({cfg,text:requestText,reply:'用户明确要求挑一张已有表情包',key:`group:${gid}`,signal:lifetime.signal,force:true,onDecision:noteSticker,onUsage:usage=>noteUsage(uid,usage,'group-sticker',admin)}):null
-    const system=fillSystem(alwaysReply()?EVERY_MESSAGE_SYSTEM:SELECTED_MESSAGE_SYSTEM,c,{admin,guard:!admin&&!command.active&&!lookupIntent})+stickerCapability(stickerStore,{explicit:stickerRequested,selected:requestedSticker})
+    const system=fillSystem(alwaysReply()?EVERY_MESSAGE_SYSTEM:SELECTED_MESSAGE_SYSTEM,c,{admin,guard:!admin&&!command.active&&!lookupIntent})+stickerCapability(stickerStore,{explicit:stickerRequested,selected:requestedSticker})+(videoLinkIgnored?UNAT_VIDEO_GUIDE:'')
     const bookMaterial=await bookContext(text,{conversationKey:`qq:group:${gid}:${uid}`,expression:!command.active&&!lookupIntent&&!video})
+    const moodTicket=mood.prepare(`qq:group:${gid}:${uid}`,{config:c.mood,admin,persist:true,task:command.active||Boolean(lookupIntent)||Boolean(video)})
     let verdict = { speak: false, reply: '', why: '模型未判定' }
     try {
       const r = await llmChat(cfg.llm, {
-        styleTask:text,
-        replyCommand:command.active,replySearchResult:searchResult,replyMaterial:imageContext+videoContext,
-        system: (long?longSystem(system,command.active?'':text):system) + commandNote(command,title) + (images.length?VISION_GUARD:'') + (searchResult||command.active?WEB_GROUNDING:'') + (searchResult?'\n本次必须依据已提供的真实检索结果回答，最终回答不贴来源网址或Markdown链接；不能声称没有联网能力，不能补造检索结果里没有的机制。结果为空或失败时如实解释。来源网址仅内部核对，不在回复中列出。':''),
-        user: referenceContext(c,text,{uid,recent:buf,lastReply:lastGroupReplies.get(gid)})+chatUserPrompt({ groupName: ev.group_name ?? gid, lines, forced, replyEveryMessage:alwaysReply(),replySelected:true, title:admin?title:adminTitles()[0], titles:command.active&&admin?[title]:adminTitles() })
-          + (long && !command.active ? `\n\n${longFormNote(text,admin)}` : '') + videoContext + searchContext + imageContext + bookMaterial,
+        styleTask:text,replyActor:actor,replyVideoLinksAllowed:videoLinksAllowed,
+        replyCommand:command.active,replySearchResult:searchResult,replyMaterial:imageContext+videoContext+forwardContext,
+        system: (long?longSystem(system,command.active?'':text):system) + commandNote(command,title) + (images.length||forward.images.length?VISION_GUARD:'') + (forward.summary?FORWARD_GUARD:'') + (searchResult||command.active?WEB_GROUNDING:'') + (searchResult?'\n本次必须依据已提供的真实检索结果回答，最终回答不贴来源网址或Markdown链接；不能声称没有联网能力，不能补造检索结果里没有的机制。结果为空或失败时如实解释。来源网址仅内部核对，不在回复中列出。':''),
+        user: referenceContext(c,text,{uid,recent:buf,lastReply:lastGroupReplies.get(gid)})+chatUserPrompt({ groupName: ev.group_name ?? gid, lines, target:{uid,name,admin,text}, forced, replyEveryMessage:alwaysReply(),replySelected:true, title:admin?title:'', titles:admin?(command.active?[title]:adminTitles()):[] })
+          + quoteContext(quote) + (long && !command.active ? `\n\n${longFormNote(text,admin)}` : '') + videoContext + searchContext + imageContext + forwardContext+bookMaterial+moodTicket.context,
         json: true,
         directReply:true,
         minReplyChars:command.active?Math.max(200,Math.floor(askedTotal*.9)):long?Math.floor(askedTotal*.9):0,
@@ -956,14 +1042,16 @@ export function createChat(cfg, {
 
     const candidate=searchResult?groundedSearchReply(searchResult,verdict.reply,title):verdict.reply
     if(searchResult&&candidate!==verdict.reply)diagnostics.fallback('search-source-fallback')
-    const reply = addressReply(cleanReply(candidate, c.nick ?? '', long ? { maxChars: command.active?12000:4000, maxLines: 0 } : {}),title,command) || (searchResult?searchFallback(searchResult,title):command.active?`${title}，这次未能生成满足200字要求的完整回复，请稍后重试。`:fallbackReply())
+    const reply = addressReply(cleanReply(boundActorReply(boundShortInteraction(candidate,shortInteraction(text,{replyCommand:command.active,replyMaterial:imageContext+videoContext})),actor,text), c.nick ?? '', long ? { maxChars: command.active?12000:4000, maxLines: 0 } : {}),title,command) || (searchResult?searchFallback(searchResult,title):command.active?`${title}，这次未能生成满足200字要求的完整回复，请稍后重试。`:fallbackReply())
     if (!reply) {
       queueCatchUp(gid, ev.message_id, text)
       return { spoke: false, why: '空回复' }
     }
 
     const sticker=stickerRequested?(requestedSticker?async()=>requestedSticker:null):verdict.reply&&!reply.includes(fallbackReply())?()=>pickSticker({cfg,text:lines.slice(-4).map(x=>`${x.name}: ${x.text}`).join('\n'),reply,key:`group:${gid}`,signal:lifetime.signal,onDecision:noteSticker,onUsage:usage=>noteUsage(uid,usage,'group-sticker',admin)}):null
-    return finishGroupReply(gid,ev.message_id,uid,reply,{voice:!stickerRequested&&Boolean(verdict.reply)&&!long&&!reply.includes(fallbackReply()),sticker})
+    const delivered=await finishGroupReply(gid,ev.message_id,uid,reply,{voice:!actor.textOnly&&!stickerRequested&&Boolean(verdict.reply)&&!long&&!reply.includes(fallbackReply()),sticker})
+    if(delivered.spoke&&!reply.includes(fallbackReply()))void mood.observe(moodTicket,{text,reply:delivered.text,onUsage:usage=>noteUsage(uid,usage,'group-mood',admin)})
+    return delivered
   }
 
   async function finishGroupReply(gid,messageId,uid,reply,{voice=false,sticker=null}={}) {
@@ -1063,6 +1151,7 @@ export function createChat(cfg, {
   async function handlePrivate(ev) {
     const uid = uidOf(ev) // 同上：私聊也要能从 sender.user_id 兜住
     if (uid && uid === String(selfId)) return null
+    const diceResult=await runDice(ev);if(diceResult)return diceResult
 
     const images = qqImages(ev.message)
     const text = messageText(ev.message)
@@ -1135,33 +1224,39 @@ export function createChat(cfg, {
     const baseCap = long2 ? (admin?Math.max(sc2.adminMaxOutputTokens,longFormCap()):Math.min(sc2.maxOutputTokens,Math.max(600,askedTotal*2+200))) : (admin ? (sc2.adminMaxOutputTokens ?? 1200) : sc2.maxOutputTokens)
     const outCap = command.active ? (admin?200000:60000) : lookupIntent ? (admin?shieldCfg(cfg).adminMaxOutputTokens:shieldCfg(cfg).maxOutputTokens) : baseCap
     const videoContext = video ? await readVideo(video, cfg, {isActive:()=>!stopped,commandRead:command.active}) : ''
-    const imageContext = images.length ? await readImages(images,cfg,{signal:lifetime.signal,onUsage:usage=>noteUsage(uid,usage,ev.message_type==='private'?'private':'group',admin)}) : ''
+    const forward=await readForward([ev.message],cfg,{signal:lifetime.signal})
+    if(forward.summary){diagnostics.forwardResult(forward.summary);if(admin)appendLog(logFile,{type:'forward-read',channel:'private',uid,id:ev.message_id,...forward.summary})}
+    const imageContext = images.length ? await readImages(images,cfg,{signal:lifetime.signal,onUsage:usage=>noteUsage(uid,usage,'private',admin)}) : ''
+    const forwardImages=forward.images.length?await readImages(forward.images,cfg,{signal:lifetime.signal,onUsage:usage=>noteUsage(uid,usage,'private-forward',admin)}):''
+    const forwardContext=forward.context+(forwardImages?'\n【以下图片观察来自上述合并转发记录】'+forwardImages:'')
     let searchResult=null
     if(lookupIntent)searchResult=await lookupWithDiagnostics(lookupIntent)
     const searchContext=searchResult?searchPrompt(searchResult):''
     const temp = long2 ? longFormTemp() : (c.temperature ?? 0.8)
     const title = command.active ? addressTitle(c, admin) : admin ? nextAdminTitle(uid) : ''
-    const lines = clipLines(s.msgs.slice(-12).map((m) => ({ name: m.role === 'self' ? (c.nick ?? '我') : name, text: m.text })))
+    const lines = clipLines(s.msgs.slice(-12).map((m) => ({ uid:m.role==='self'?selfId:uid,self:m.role==='self',name: m.role === 'self' ? (c.nick ?? '我') : name, text: m.text })))
+    const actor={uid,name,admin,botId:selfId,botName:c.nick??'青娥鱼',voiceEnabled:c.voice?.enabled===true,mentions:[],adminTitles:adminTitles(),otherNames:[],textOnly:true}
     const requestedSticker=stickerRequested?await pickSticker({cfg,text:msg,reply:'用户明确要求挑一张已有表情包',key:`private:${uid}`,signal:lifetime.signal,force:true,onDecision:noteSticker,onUsage:usage=>noteUsage(uid,usage,'private-sticker',admin)}):null
-    const template=alwaysReply()||images.length||command.active||video||lookupIntent||stickerRequested?PRIVATE_SYSTEM.replace(/只输出 JSON，不要任何解释：[\s\S]*$/, '只输出要发到 QQ 的回复正文，不要 JSON、字段名、解释或思考过程。正文必须非空。'):PRIVATE_SYSTEM
+    const template=alwaysReply()||images.length||forward.summary||command.active||video||lookupIntent||stickerRequested?PRIVATE_SYSTEM.replace(/只输出 JSON，不要任何解释：[\s\S]*$/, '只输出要发到 QQ 的回复正文，不要 JSON、字段名、解释或思考过程。正文必须非空。'):PRIVATE_SYSTEM
     const bookMaterial=await bookContext(msg,{conversationKey:`qq:private:${uid}`,expression:!command.active&&!lookupIntent&&!video})
+    const moodTicket=mood.prepare(`qq:private:${uid}`,{config:c.mood,admin,persist:admin,task:command.active||Boolean(lookupIntent)||Boolean(video)})
     let out = ''
     try {
       if(!hasLLM(cfg.llm))throw Error('模型未配置')
       const r = await llmChat(cfg.llm, {
-        styleTask:msg,
-        replyCommand:command.active,replySearchResult:searchResult,replyMaterial:imageContext+videoContext,
+        styleTask:msg,replyActor:actor,
+        replyCommand:command.active,replySearchResult:searchResult,replyMaterial:imageContext+videoContext+forwardContext,
         system: fillSystem(long2?longSystem(template,command.active?'':msg):template, c, {
           admin,
           trust: admin
             ? `你的主人，也是这台号的管理员${title ? `（这轮叫他「${title}」）` : ''}。他问「我是谁」「你认得我吗」就直接认他，别装不认识；他会看到你的回复。`
             : '普通群友（没有管理权限，且这段对话不会被保存）',
           guard: !admin&&!command.active&&!lookupIntent,
-        }) + stickerCapability(stickerStore,{explicit:stickerRequested,selected:requestedSticker}) + commandNote(command,title) + (images.length?VISION_GUARD:'') + (searchResult||command.active?WEB_GROUNDING:'') + (searchResult?'\n本次必须依据已提供的真实检索结果回答，最终回答不贴来源网址或Markdown链接；不能声称没有联网能力，不能补造检索结果里没有的机制。结果为空或失败时如实解释。来源网址仅内部核对，不在回复中列出。':''),
+        }) + stickerCapability(stickerStore,{explicit:stickerRequested,selected:requestedSticker}) + commandNote(command,title) + (images.length||forward.images.length?VISION_GUARD:'') + (forward.summary?FORWARD_GUARD:'') + (searchResult||command.active?WEB_GROUNDING:'') + (searchResult?'\n本次必须依据已提供的真实检索结果回答，最终回答不贴来源网址或Markdown链接；不能声称没有联网能力，不能补造检索结果里没有的机制。结果为空或失败时如实解释。来源网址仅内部核对，不在回复中列出。':''),
         user: privateUserPrompt({ name, lines, admin, title, titles: command.active?[title]:admin?adminTitles():[],optionalAddress:c.learnedStyle?.zhugeEnabled===true&&!command.active })
-          + (long2 && !command.active ? `\n\n${longFormNote(msg,admin)}` : '') + videoContext + searchContext + imageContext + bookMaterial,
+          + (long2 && !command.active ? `\n\n${longFormNote(msg,admin)}` : '') + videoContext + searchContext + imageContext + forwardContext+bookMaterial+moodTicket.context,
         json: true,
-        directReply:alwaysReply() || Boolean(images.length) || command.active || Boolean(video) || Boolean(lookupIntent)||stickerRequested,
+        directReply:alwaysReply() || Boolean(images.length) || Boolean(forward.summary) || command.active || Boolean(video) || Boolean(lookupIntent)||stickerRequested,
         minReplyChars:command.active?Math.max(200,Math.floor(askedTotal*.9)):long2?Math.floor(askedTotal*.9):0,
         strictMinReply:command.active,
         outputTokenCeiling:command.active?(admin?200000:60000):(admin?60000:20000),
@@ -1181,12 +1276,12 @@ export function createChat(cfg, {
 
     const candidate=searchResult?groundedSearchReply(searchResult,out,title):out
     if(searchResult&&candidate!==out)diagnostics.fallback('search-source-fallback')
-    let reply = addressReply(cleanReply(candidate, c.nick ?? '', long2 ? { maxChars: command.active?12000:4000, maxLines: 0 } : {}),title,command) || (searchResult?searchFallback(searchResult,title):command.active?`${title}，这次未能生成满足200字要求的完整回复，请稍后重试。`:alwaysReply()?fallbackReply():'')
+    let reply = addressReply(cleanReply(boundActorReply(boundShortInteraction(candidate,shortInteraction(msg,{replyCommand:command.active,replyMaterial:imageContext+videoContext})),actor,msg), c.nick ?? '', long2 ? { maxChars: command.active?12000:4000, maxLines: 0 } : {}),title,command) || (searchResult?searchFallback(searchResult,title):command.active?`${title}，这次未能生成满足200字要求的完整回复，请稍后重试。`:alwaysReply()?fallbackReply():'')
     if (!reply) return { spoke: false, why: '空回复' }
 
     const sticker=stickerRequested?(requestedSticker?async()=>requestedSticker:null):out&&!reply.includes(fallbackReply())?()=>pickSticker({cfg,text:lines.slice(-4).map(x=>`${x.name}: ${x.text}`).join('\n'),reply,key:`private:${uid}`,signal:lifetime.signal,onDecision:noteSticker,onUsage:usage=>noteUsage(uid,usage,'private-sticker',admin)}):null
     if(stopped)return {spoke:false,why:'已停止'}
-    const delivery=await sendQQTextParts(reply,{config:c,signal:lifetime.signal,isActive:()=>!stopped,wait:replySleep,onSticker:noteSticker,chooseSticker:sticker,
+    const delivery=await sendQQTextParts(reply,{config:{...c,omitShortPeriod:isQinge(c)},task:msg,signal:lifetime.signal,isActive:()=>!stopped,wait:replySleep,onSticker:noteSticker,chooseSticker:sticker,
       send:(segments,index,context)=>sayPrivate(cfg,uid,segments,context),onError:()=>appendLog(logFile,{type:'error',channel:'private',uid,why:'分条发送失败或回执不明，停止后续内容，不重发'})})
     diagnostics.partsResult(delivery)
     if(!delivery.text)return {spoke:false,why:'发送失败'}
@@ -1210,6 +1305,7 @@ export function createChat(cfg, {
       appendLog(logFile, { type: 'guest', channel: 'private', admin: false, uid, note: '已回复访客（内容未记录）' })
       logger.log?.(`[chat] 私聊访客 ${uid} → 已回复（未记录）`)
     }
+    if(!reply.includes(fallbackReply()))void mood.observe(moodTicket,{text:msg,reply,onUsage:usage=>noteUsage(uid,usage,'private-mood',admin)})
     return { spoke: true, text: reply }
   }
 
@@ -1233,6 +1329,7 @@ export function createChat(cfg, {
   const messageQueues=new Map()
   let queuedMessages=0
   async function handleEvent(ev) {
+    if(ev&&['message','message_sent'].includes(ev.post_type)&&ev.message_type==='group'&&groupSet().has(String(ev.group_id))&&(ev.post_type==='message_sent'||uidOf(ev)&&uidOf(ev)===String(selfId))){try{await recordScriptEvent(ev)}catch(e){logger.warn?.('[script] 自身消息记录失败：'+e.message)}}
     if (!ev || ev.post_type !== 'message') return null
     if (!['private','group'].includes(ev.message_type))return null
     const channel=ev.message_type==='group'?`group:${ev.group_id}`:`private:${uidOf(ev)}`
@@ -1300,9 +1397,9 @@ export function createChat(cfg, {
   }
 
   return {
-    async previewVoice(text){
+    async previewVoice(text,{parameters}={}){
       if(stopped||typeof rawSendVoice.preview!=='function')throw Error('DSH实际语音模块尚未就绪，请重载插件')
-      return rawSendVoice.preview(text,cfg,{signal:lifetime.signal})
+      return rawSendVoice.preview(text,cfg,{signal:lifetime.signal,parameters})
     },
     selfId: (id) => { selfId = String(id) },
     handleEvent,
@@ -1338,21 +1435,24 @@ export function createChat(cfg, {
         outputRateOnly:rateOnly(),
         replyEveryMessage:alwaysReply(),
         replyFormat:'text',
-        replyParts:{version:1,enabled:c.splitReplies!==false,minChars:c.splitReplyChars??90,maxParts:3,gapMs:800,stickerAfterText:true},
-        replySelection:{version:4,mode:alwaysReply()?'every-message':'probability',chance:replyChance(),strategy:'balanced-per-group',singleGate:true,shortMessages:true,imagesShareChance:true,userTextIntents:true,forcedBypass:true},
-        replyPolicyVersion:8,
+        replyParts:{version:3,omitShortPeriod:isQinge(c),shortTextMaxChars:60,enabled:c.splitReplies!==false,minChars:c.splitReplyChars??90,maxParts:QQ_REPLY_PART_LIMIT,gapMs:800,stickerAfterText:true},
+        replySelection:{version:16,diceCharacterNames:true,diceLogMemoryGate:true,diceGlobalNpcs:true,diceJointScenes:true,diceNpcActivation:true,diceScriptLog:true,diceAffinity:true,diceTheatre:true,diceCommands:c.dice?.enabled===true,diceKeeperRegistry:true,perGroupChance:true,groupChances:Object.fromEntries([...groupSet()].map(gid=>[gid,replyChance(gid)])),groupVideoRequiresExplicitAt:true,forwardRecords:true,quotedReplyToSelf:true,quoteAuthorVerified:true,mode:alwaysReply()?'every-message':'probability',chance:replyChance(),strategy:'balanced-per-group',singleGate:true,shortMessages:true,imagesShareChance:true,userTextIntents:true,forcedBypass:true},
+        replyPolicyVersion:9,
+        randomRepeat:{...repeater.status(),enabled:c.repeat?.enabled===true,chance:c.repeat?.chance??.1,text:c.repeat?.text!==false,stickers:c.repeat?.stickers!==false,cooldownSec:c.repeat?.cooldownSec??30},
+        actorGrounding:{version:1,currentSender:true,uidBased:true,mentionsAreNotSenders:true,textOnlyPerMessage:true},
         deepReply:{version:1,enabled:c.deepReply?.enabled===true,searchEveryReply:c.deepReply?.enabled===true&&c.search?.enabled!==false,thinking:'enabled',reasoningEffort:'high'},
-        learnedStyle:{version:2,zhugeEnabled:c.learnedStyle?.zhugeEnabled===true,maxExamples:2,syntaxAndEllipsis:true,focusContext:true,identityPreserved:true},
-        naturalStyle:{version:3,colonFrames:false,publicBookSpeech:true,maxRepairAttempts:1,sharedReplyDeadline:true},
+        mood:{enabled:c.mood?.enabled===true,...mood.status()},
+        learnedStyle:{version:4,dialogueCadence:true,humanScenes:true,zhugeEnabled:c.learnedStyle?.zhugeEnabled===true,maxExamples:2,syntaxAndEllipsis:true,focusContext:true,identityPreserved:true},
+        naturalStyle:{version:5,contextualBanter:true,conversationalFillers:true,colonFrames:false,publicBookSpeech:true,maxRepairAttempts:1,sharedReplyDeadline:true},
         tokenCaps:{guest:shieldCfg(cfg).maxOutputTokens,admin:shieldCfg(cfg).adminMaxOutputTokens,guestCommand:60000,adminCommand:200000},
         commandMode:{enabled:c.command?.enabled!==false,prefix:c.command?.prefix??'我以令咒命之：',minChars:200,guestMaxTokens:60000,adminMaxTokens:200000,adminTitle:addressTitle(c,true),guestTitle:addressTitle(c,false)},
         ordinaryAdminTitles:adminTitles(),
         addressPolicyVersion:2,
         qqVideoLinks:true,
         qqStickers:{version:4,repeatLimit:true,explicitRequests:true,diagnostics:true,source:'biaoqingbao',count:stickerCount,maxBytes:null,maxItems:null},
-        personaPolicy:{version:1,enabled:isQinge(c),selfTitle:isQinge(c)?'本仙':null,adminRelationshipByUid:true,fallbackSelfTitle:true},
+        personaPolicy:{version:2,enabled:isQinge(c),selfTitle:isQinge(c)?'本仙':null,origin:isQinge(c)?'东方Project·霍青娥':null,originTitle:isQinge(c)?'青娥娘娘':null,originRelationship:isQinge(c)?'独立衍生角色':null,adminRelationshipByUid:true,fallbackSelfTitle:true},
         bookMemory:{version:3,publicReferences:true,mode:'dimensions-articles-fragments',personaSeparate:true,emotionalExpression:true,expressionRoutingVersion:3,inquiryDimensions:true,expressionFragments:2,expressionChars:450,expressionCooldownSeconds:180,maxFragments:3,maxCharsPerFragment:700,automaticIndexing:false},
-        qqVoice:{version:10,senderRevision:rawSendVoice.revision??0,localGainDb:c.voice?.localGainDb??0,localVoice:true,localConfigured:Boolean(c.voice?.localReferenceAudio&&c.voice?.localPromptText),stickerAfterVoice:true,boostDb:c.voice?.boostDb??0,normalizeLoudness:c.voice?.normalizeLoudness!==false,loudnessTarget:c.voice?.loudnessTarget??-16,volume:c.voice?.volume??50,provider:c.voice?.provider||'qq-native',model:c.voice?.provider==='gpt-sovits'?'gpt-sovits':c.voice?.provider==='cosyvoice'?(c.voice?.model||'cosyvoice-v3.5-flash'):null,hasVoiceId:Boolean(c.voice?.voiceId),enabled:c.voice?.enabled===true,maxChars:c.voice?.maxChars??80,chance:c.voice?.chance??.35,character:c.voice?.character||'lucy-voice-xueling',groupOnly:true},
+        qqVoice:{version:14,studioParameters:true,trainingPaused:trainingPaused(),audit:true,groupTurnSerial:true,splitLong:c.voice?.splitLong!==false,maxParts:QQ_REPLY_PART_LIMIT,senderRevision:rawSendVoice.revision??0,localGainDb:c.voice?.localGainDb??0,localVoice:true,localConfigured:Boolean(c.voice?.localReferenceAudio&&c.voice?.localPromptText),stickerAfterVoice:true,boostDb:c.voice?.boostDb??0,normalizeLoudness:c.voice?.normalizeLoudness!==false,loudnessTarget:c.voice?.loudnessTarget??-16,volume:c.voice?.volume??50,provider:c.voice?.provider||'qq-native',model:c.voice?.provider==='gpt-sovits'?'gpt-sovits':c.voice?.provider==='cosyvoice'?(c.voice?.model||'cosyvoice-v3.5-flash'):null,hasVoiceId:Boolean(c.voice?.voiceId),enabled:c.voice?.enabled===true,maxChars:c.voice?.maxChars??80,chance:c.voice?.chance??.35,character:c.voice?.character||'lucy-voice-xueling',groupOnly:true},
         qqVision:{version:2,enabled:cfg.vision?.enabled!==false,model:cfg.vision?.model|| (cfg.llm?.provider==='deepseek'?'deepseek-flash':cfg.llm?.model),maxImages:cfg.vision?.maxImages??3},
         search:{enabled:c.search?.enabled!==false,version:6,ordinaryWikiQuestions:true,automaticCommands:true,preferredSource:'game-wiki',priorityWikis:c.search?.priorityWikis??['fgo.wiki','prts.wiki','wiki.biligame.com/sr','wiki.biligame.com/ys'],crossCheckAllSources:c.search?.crossCheck!==false,fallbackOrder:['bili','web','youtube'],engines:c.search?.engines??['bing','duckduckgo','brave'],youtube:c.search?.youtube!==false,answerSourceURLs:false,freshCacheMinutes:c.search?.freshCacheMinutes??2,minVideos:5,commandReadLimits:false,bili:true,web:true,pageRead:true,maxPages:10,cacheMinutes:10},
         queuedMessages,

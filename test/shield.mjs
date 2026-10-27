@@ -20,8 +20,8 @@ const check = (name, ok, extra = '') => {
   console.log(`${ok ? '✓' : '✗'} ${name}${extra ? '  ' + extra : ''}`)
 }
 
-const SELF = '881000004'
-const ADMIN = 880010004
+const SELF = '3816283038'
+const ADMIN = 887000006
 const GUEST = 1001
 
 const mkCfg = (over = {}, shield = {}) => ({

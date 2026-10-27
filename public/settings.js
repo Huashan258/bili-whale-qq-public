@@ -1,4 +1,5 @@
-import { fields, sections } from './settings-schema.js'
+import { fields, sections, allowsDecimal } from './settings-schema.js'
+import {parseGroupChances,formatGroupChances,groupReplyChance} from './group-probabilities.js'
 const $ = s => document.querySelector(s)
 const root = $('#view-settings')
 let loaded, dirty = new Map(), category = 'chat', query = '', busy = false, dirtyOnly = false
@@ -21,6 +22,7 @@ function updateDirty() {
   if(dirtyOnly)filter()
 }
 function parse(f, input) {
+  if(f.type==='group-probabilities')return parseGroupChances(input.value)
   if (f.type === 'boolean') return input.checked
   if (f.type === 'number') {
     if (input.value.trim() === '' || !input.checkValidity()) throw new Error(`${f.label}：请填写 ${f.min}–${f.max} 之间的数值`)
@@ -39,7 +41,7 @@ function fill(data) {
     const input = inputs.get(f.path), v = data.values[f.path]
     input.setCustomValidity('')
     if (f.type === 'boolean') input.checked = Boolean(v)
-    else input.value = f.type === 'secret' ? '' : f.type === 'masters' ? JSON.stringify(v,null,2) : Array.isArray(v) ? v.join(f.type === 'hours' ? ', ' : '\n') : v ?? ''
+    else input.value = f.type==='group-probabilities'?formatGroupChances(v):f.type === 'secret' ? '' : f.type === 'masters' ? JSON.stringify(v,null,2) : Array.isArray(v) ? v.join(f.type === 'hours' ? ', ' : '\n') : v ?? ''
     if (f.type === 'secret') input.placeholder = data.secrets[f.path] ? '已配置 · 留空保留' : '未配置'
   }
   const rt = data.runtime
@@ -47,6 +49,7 @@ function fill(data) {
   $('#settings-runtime').textContent = data.source?.kind === 'dsh' ? `正在跟随 DSH · PID ${data.source.pid} · ${data.source.url} · 每 5 秒读取生效设置` : rt?.running && age >= 0 && age < 90000 ? `DSH 运行中 · PID ${rt.pid ?? '未知'} · ${rt.dry ? '预演' : '实发'} · 心跳 ${Math.round(age/1000)} 秒前（当前读取共享配置文件）` : 'DSH 未运行或心跳已过期；独立 Agent 状态可在「群聊」查看。'
   $('#settings-file').textContent = data.configFile
   $('#settings-preview').hidden = true
+  groupChancePreview()
   updateDirty()
 }
 async function reload() {
@@ -74,14 +77,14 @@ for (const f of fields) {
   const label = document.createElement('label'), id = `setting-${f.path.replaceAll('.','-')}`
   label.htmlFor=id; label.textContent=f.label
   const code = document.createElement('code'); code.textContent=f.path
-  const input = document.createElement(f.type === 'select' ? 'select' : ['long','list','masters','hours'].includes(f.type) ? 'textarea' : 'input')
+  const input = document.createElement(f.type === 'select' ? 'select' : ['long','list','masters','hours','group-probabilities'].includes(f.type) ? 'textarea' : 'input')
   if (f.type === 'select') for (const option of f.options) {
     const el=document.createElement('option'); el.value=option.value; el.textContent=option.label; input.append(el)
   }
   input.readOnly=Boolean(f.readOnly)
   input.id=id; input.autocomplete='off'; input.spellcheck=false
   if (input.tagName==='INPUT') input.type = f.type === 'boolean' ? 'checkbox' : f.type === 'secret' ? 'password' : f.type === 'number' ? 'number' : 'text'
-  if (f.type === 'number') { input.min=f.min; input.max=f.max; input.step=/temperature|speakChance|Minutes/i.test(f.path)?'any':'1' }
+  if (f.type === 'number') { input.min=f.min; input.max=f.max; input.step=allowsDecimal(f.path)?'any':'1' }
   if (input.tagName==='TEXTAREA') input.rows = f.type === 'long' || f.type === 'masters' ? 8 : 3
   const hint = document.createElement('small'); hint.textContent=f.hint || (f.type === 'number' ? `允许范围 ${f.min}–${f.max}` : f.type === 'list' ? '每行一项或逗号分隔；清空可移除全部。' : '')
   input.addEventListener('input',()=>{
@@ -92,10 +95,22 @@ for (const f of fields) {
       if(f.path==='chat.shield.maxOutputTokens')inputs.get('chat.shield.adminMaxOutputTokens').value=v*3
       if ((f.type==='secret'&&!v.trim()) || json(v)===json(loaded.values[f.path])) dirty.delete(f.path)
       else dirty.set(f.path,v)
+      if(['chat.groupSpeakChances','chat.speakChance','qq.groupIds'].includes(f.path))groupChancePreview()
     } catch(e) { dirty.set(f.path,undefined); status(`${f.label}：${e.message}`,true) }
     $('#settings-preview').hidden=true; updateDirty()
   })
   card.append(label,code,input,hint); $('#settings-fields').append(card); inputs.set(f.path,input)
+  if(f.type==='group-probabilities'){input.placeholder='123456=0.6\n654321=0.05';input.rows=6;const preview=document.createElement('small');preview.id='group-chance-preview';preview.style.whiteSpace='pre-line';card.append(preview)}
+}
+function groupChancePreview(){
+ if(!loaded)return
+ const output=$('#group-chance-preview');if(!output)return
+ try{
+  const overrides=parseGroupChances(inputs.get('chat.groupSpeakChances').value)
+  const global=Number(inputs.get('chat.speakChance').value)
+  const groups=inputs.get('qq.groupIds').value.split(/[\n,，]+/).map(s=>s.trim()).filter(Boolean)
+  output.textContent='当前表单生效预览（保存后使用）\n'+groups.map(gid=>`群 ${gid}：${Number((groupReplyChance({speakChance:global,groupSpeakChances:overrides},gid)*100).toFixed(4))}%${Object.hasOwn(overrides,gid)?'（单独设置）':'（沿用全局）'}`).join('\n')
+ }catch(e){output.textContent=e.message}
 }
 $('#settings-dirty-only').onclick=()=>{dirtyOnly=!dirtyOnly;$('#settings-dirty-only').setAttribute('aria-pressed',String(dirtyOnly));filter()}
 $('#settings-search').oninput=e=>{ query=e.target.value.toLowerCase().trim(); filter() }

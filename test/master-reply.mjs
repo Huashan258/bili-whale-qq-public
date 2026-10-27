@@ -13,12 +13,12 @@ const ok = (name, fn) => {
 }
 
 const now = Math.floor(Date.now() / 1000)
-const cfg = { raw: { bili: { dedeUserId: '880010003' } }, share: { blockKeywords: ['政治'], masterReplyWithinDays: 3 } }
-const master = { mid: '880010005', name: '示例管理员' }
+const cfg = { raw: { bili: { dedeUserId: '887000005' } }, share: { blockKeywords: ['政治'], masterReplyWithinDays: 3 } }
+const master = { mid: '887000007', name: '示例管理员' }
 const comments = [
   { rpid: '1', mid: '111', uname: '路人A', text: '这个操作确实稳，我上周试过', ctime: now - 3600 },
-  { rpid: '2', mid: '880010003', uname: '自己', text: '这条是我自己发的', ctime: now - 3600 },
-  { rpid: '3', mid: '880010005', uname: '主人', text: '主人自己说的话', ctime: now - 3600 },
+  { rpid: '2', mid: '887000005', uname: '自己', text: '这条是我自己发的', ctime: now - 3600 },
+  { rpid: '3', mid: '887000007', uname: '主人', text: '主人自己说的话', ctime: now - 3600 },
   { rpid: '4', mid: '222', uname: '老人', text: '四天前留的言', ctime: now - 4 * 86400 },
   { rpid: '5', mid: '333', uname: '水军', text: '顶', ctime: now - 100 },
   { rpid: '6', mid: '444', uname: '广告哥', text: '加群领福利 https://x.xx', ctime: now - 200 },
@@ -48,18 +48,18 @@ console.log('quota')
 const cfgq = { share: { biliCommentPerDay: 3, masterCommentPerDay: 1, masterReplyPerDay: 2 } }
 ok('每个主人每天只能发 1 条评论', () => {
   const s = {}
-  assert.equal(quotaOf(cfgq, s, '880010005', 'comment').ok, true)
-  noteComment(cfgq, s, '880010005', 'comment')
-  assert.equal(quotaOf(cfgq, s, '880010005', 'comment').ok, false)
-  assert.match(quotaOf(cfgq, s, '880010005', 'comment').why, /这个主人/)
+  assert.equal(quotaOf(cfgq, s, '887000007', 'comment').ok, true)
+  noteComment(cfgq, s, '887000007', 'comment')
+  assert.equal(quotaOf(cfgq, s, '887000007', 'comment').ok, false)
+  assert.match(quotaOf(cfgq, s, '887000007', 'comment').why, /这个主人/)
 })
 ok('回复和评论分开计，但共用总量', () => {
   const s = {}
-  noteComment(cfgq, s, '880010005', 'reply')
-  noteComment(cfgq, s, '880010005', 'reply')
-  assert.equal(quotaOf(cfgq, s, '880010005', 'reply').ok, false) // 回复 2/2
-  assert.equal(quotaOf(cfgq, s, '880010005', 'comment').ok, true) // 评论还没发
-  assert.equal(quotaOf(cfgq, s, '880010005', 'reply').total, 2)
+  noteComment(cfgq, s, '887000007', 'reply')
+  noteComment(cfgq, s, '887000007', 'reply')
+  assert.equal(quotaOf(cfgq, s, '887000007', 'reply').ok, false) // 回复 2/2
+  assert.equal(quotaOf(cfgq, s, '887000007', 'comment').ok, true) // 评论还没发
+  assert.equal(quotaOf(cfgq, s, '887000007', 'reply').total, 2)
 })
 ok('账号总量到顶后谁都不许发', () => {
   const s = {}
@@ -77,8 +77,8 @@ ok('跨天自动归零', () => {
   assert.equal(quotaOf(cfgq, s, 'x', 'comment').ok, true)
 })
 ok('旧版 byMid=数字 的结构能读进来', () => {
-  const s = { commentDaily: { day: today(), byMid: { '880010005': 1 } } }
-  assert.equal(quotaOf(cfgq, s, '880010005', 'comment').ok, false)
+  const s = { commentDaily: { day: today(), byMid: { '887000007': 1 } } }
+  assert.equal(quotaOf(cfgq, s, '887000007', 'comment').ok, false)
 })
 ok('额度可以设成 0（等于关掉）', () => {
   const c0 = { share: { biliCommentPerDay: 0, masterCommentPerDay: 1 } }

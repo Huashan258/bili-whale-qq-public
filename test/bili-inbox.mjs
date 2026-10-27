@@ -6,7 +6,7 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'whale-bili-inbox-'))
 process.env.BILI_WHALE_DATA=dir
 const {runPrivateInbox,pendingPrivate,parsePrivateJSON,sendPrivateMessage}=await import('../src/bili-private.mjs')
 const {runPatrol}=await import('../src/bili-patrol.mjs')
-const SELF='880010003',PEER='880010005',bv='BV1pjwazUET1'
+const SELF='887000005',PEER='887000007',bv='BV1pjwazUET1'
 let clock=Date.now()
 const cfg={raw:{bili:{dedeUserId:SELF}},cookie:{sessdata:'secret-session',bili_jct:'secret-jct'},cookieHeader:'secret-cookie',llm:{provider:'fixture',apiKey:'fixture'},masters:[{mid:PEER,name:'主人'}],biliInbox:{enabled:true,privateUsers:[PEER],pollMinutes:5,lookbackHours:48},share:{ownVideoReplies:true,replyWatchVideos:[bv],masterReplyPerVideo:2,biliGapSec:0,biliCommentPerDay:300}}
 const msg=(n,text='PRIVATE INPUT',sender=PEER)=>({sender_uid:sender,receiver_id:sender===PEER?SELF:PEER,receiver_type:1,msg_seqno:String(n),msg_key:'69843934917676690'+String(n),msg_type:1,msg_status:0,timestamp:Math.floor(clock/1000),content:JSON.stringify({content:text})})

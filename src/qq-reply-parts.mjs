@@ -1,4 +1,14 @@
 import {setTimeout as pause} from 'node:timers/promises'
+export const QQ_REPLY_PART_LIMIT=5
+
+// Only casual displayed text: leave speech synthesis, quoted text and exact formats alone.
+export function shortTextEnding(text,task='') {
+  const value=String(text),trimmed=value.trimEnd()
+  if([...trimmed].length>60||!trimmed.endsWith('。')||/。。$/.test(trimmed))return value
+  if(/[\n`“”「」『』"']|https?:\/\/|www\.|\[CQ:|^\s*(?:[-*#]|\d+[.、])/.test(value))return value
+  if(/原样|逐字|引用|翻译|格式|代码|标点|句号|\d+\s*字|写.{0,5}(?:诗|古文|文言|台词|文章|日记|文案)/.test(String(task)))return value
+  return trimmed.slice(0,-1)
+}
 
 // 仅在语句/分句边界分组，不删字、不替模型改写。代码和表格保留整条。
 export function splitQQReply(text,{enabled=true,minChars=90}={}) {
@@ -19,7 +29,7 @@ export function splitQQReply(text,{enabled=true,minChars=90}={}) {
   }
   const usable=positions=>[...new Set(positions)].filter(i=>value.slice(0,i).trim().length>=15&&value.slice(i).trim().length>=15)
   const ends=usable(boundaries),points=ends.length?ends:usable(clauses)
-  const wanted=Math.min(3,Math.max(2,Math.ceil(Array.from(value).length/120))),cuts=[]
+  const wanted=Math.min(QQ_REPLY_PART_LIMIT,Math.max(2,Math.ceil(Array.from(value).length/120))),cuts=[]
   let last=0
   for(let part=1;part<wanted;part++){
     const available=points.filter(i=>i-last>=15&&value.length-i>=15)
@@ -47,8 +57,9 @@ export async function sendQQReplySticker({send,chooseSticker,signal,isActive=()=
 }
 
 // 每条都走原限频出口；只重试调用者明确确认未发出的引用拒绝，未知回执不重发。
-export async function sendQQTextParts(text,{config={},send,chooseSticker,signal,isActive=()=>true,wait=(ms)=>pause(ms,undefined,{signal}),onError=()=>{},onSticker=()=>{}}={}) {
-  const parts=splitQQReply(text,{enabled:config.splitReplies!==false,minChars:config.splitReplyChars??90}),sent=[]
+export async function sendQQTextParts(text,{config={},task='',send,chooseSticker,signal,isActive=()=>true,wait=(ms)=>pause(ms,undefined,{signal}),onError=()=>{},onSticker=()=>{}}={}) {
+  const shown=config.omitShortPeriod===true?shortTextEnding(text,task):text
+  const parts=splitQQReply(shown,{enabled:config.splitReplies!==false,minChars:config.splitReplyChars??90}),sent=[]
   for(let i=0;i<parts.length;i++){
     try{
       if(signal?.aborted||!isActive())break

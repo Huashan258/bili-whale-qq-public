@@ -1,0 +1,3 @@
+[submodule "integrations/airunning"]
+	path = integrations/airunning
+	url = https://github.com/Huashan258/airunning-dice.git

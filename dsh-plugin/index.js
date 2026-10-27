@@ -1,3 +1,4 @@
+// TRPG character names, log memory gate, editor and dedicated settings, 2026-10-28.
 /**
  * dsh-whale —— bili-whale-qq 的 DSH 插件胶水层（host 半端）
  * ============================================================================
@@ -77,6 +78,7 @@ export const Config = !z ? undefined : z.object({
   /** B站评论区巡检间隔（分钟）。0 = 不巡检（定时器还活着，改回数字就恢复） */
   replyPatrolMinutes: z.number().default(5).extra('volatile', true),
   /** QQ 群聊（连 OneBot WS）。默认关 —— 连上了就是真的在群里 */
+  diceEnabled: z.boolean().default(false).extra('volatile', true),
   qqEnabled: z.boolean().default(false).extra('volatile', true),
   /** WebUI（7788）。默认关 —— 端口是独占的，不该由插件默认抢 */
   webUi: z.boolean().default(false).extra('volatile', true),
@@ -157,6 +159,7 @@ const DEFAULTS = {
   dry: true,
   replyPatrolMinutes: 5,
   qqEnabled: false,
+  diceEnabled: false,
   webUi: false,
   webUiPort: 7788,
   scrollEnabled: false,
@@ -198,6 +201,7 @@ const DEFAULTS = {
  * 「cordis 显式设过」的判据 = 值不等于 DEFAULTS（volatile 解包后没设过就是默认值）。
  */
 const FILE_CFG_MAP = [
+  ['diceEnabled', ['chat','dice','enabled']],
   ['replyPatrolMinutes', ['share', 'replyPatrolMinutes']],
 ]
 
@@ -281,6 +285,7 @@ const sigOf = (c) => JSON.stringify([
  *    免得插件在用户没碰过的字段上反客为主，把 config.json 里手写的长文本冲掉。
  */
 const CHAT_FIELDS = [
+  ['diceEnabled','dice.enabled'],
   ['nick', 'nick'],
   ['persona', 'persona'],
   ['taboo', 'taboo'],
@@ -726,7 +731,7 @@ export function apply(ctx, config) {
             try{
               let body;try{body=JSON.parse(await readBody(req))}catch{throw Error('试听请求格式错误')}
               rt.refreshVoiceConfig?.()
-              const audio=await rt.chat.previewVoice(body.text),id=randomUUID(),dir=join(dataDir,'voice-preview')
+              const audio=await rt.chat.previewVoice(body.text,{parameters:body.parameters}),id=randomUUID(),dir=join(dataDir,'voice-preview')
               mkdirSync(dir,{recursive:true});writeFileSync(join(dir,id+'.wav'),audio.bytes,{flag:'wx'})
               const old=readdirSync(dir).filter(f=>/^[a-f0-9-]{36}\.wav$/.test(f)).map(f=>({f,time:statSync(join(dir,f)).mtimeMs})).sort((a,b)=>b.time-a.time)
               for(const entry of old.slice(5))unlinkSync(join(dir,entry.f))

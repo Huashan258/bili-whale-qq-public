@@ -10,8 +10,9 @@ const prose='本仙读书时爱看人如何相待，言辞不必处处华美，�
 let bot
 try{
   for(const text of [prose,prose+prose, '你好呀！','天地玄黄'.repeat(50),'```js\n'+prose+'\n```','“'+prose+'”']){
-    const p=splitQQReply(text);assert.ok(p.length<=3);assert.equal(p.join(''),text);assert.ok(p.every(Boolean))
+    const p=splitQQReply(text);assert.ok(p.length<=5);assert.equal(p.join(''),text);assert.ok(p.every(Boolean))
   }
+  assert.equal(splitQQReply(prose.repeat(8)).length,5)
   assert.ok(splitQQReply(prose).length>1)
   assert.equal(splitQQReply(prose,{enabled:false}).length,1)
   assert.equal(splitQQReply(prose,{minChars:500}).length,1)
@@ -42,5 +43,5 @@ try{
   await bot.handleEvent(ev(1));assert.equal(sent.length,count+1,'同一事件不能重发任何分段')
   sent.length=0;await bot.handleEvent(ev(2,true));assert.equal(sent.length,count+1);assert.equal(sent.at(-1)[0].type,'image')
   sent.length=0;failAt=2;const broken=await bot.handleEvent(ev(3));assert.equal(sent.length,2);assert.equal(broken.text,splitQQReply(prose)[0],'上下文只记已确认发送部分')
-  console.log('QQ拆句通过：最多三条/无损句意/短答代码保留、顺序与间隔、文字后选图、群私聊集成、只首条引用、部分失败停止/无表情/不重发、取消、表情失败不影响正文。')
+  console.log('QQ拆句通过：最多五条/无损句意/短答代码保留、顺序与间隔、文字后选图、群私聊集成、只首条引用、部分失败停止/无表情/不重发、取消、表情失败不影响正文。')
 }finally{bot?.stop();fs.rmSync(dir,{recursive:true,force:true})}

@@ -3,6 +3,8 @@ import { parseJSON } from './llm.mjs'
 import { styleIssue, STYLE_REPAIR, removeColonFrames } from './natural-style.mjs'
 import { prepareDeepReply } from './deep-reply.mjs'
 import { withoutSourceURLs } from './reply-links.mjs'
+import {boundShortInteraction} from './reply-scope.mjs'
+import {actorReplyIssue,boundActorReply,ACTOR_REPAIR} from './conversation-actor.mjs'
 
 // 必回模式只需要正文；兼容旧JSON，但绝不把损坏的结构、why或思考内容发到QQ。
 export function decodeChatReply(content) {
@@ -46,14 +48,14 @@ export async function generateDirectReply(call,model,options,{onResult=()=>{},no
   const usage={prompt:0,completion:0,reasoning:0,total:0}
   let last=null,decoded={reply:'',reason:'empty'},bestLength=null,styleFallback=null
   const deviation=reply=>Math.max(0,(options.minReplyChars||0)-reply.length,options.maxReplyChars?reply.length-options.maxReplyChars:0)
-  const keepReply=entry=>{const clean=humanizeBookReply(removeColonFrames(entry.reply,options),options.styleTask??options.user);return replyIssue(clean,options)?entry.reply:clean}
+  const keepReply=entry=>{const clean=humanizeBookReply(removeColonFrames(entry.reply,options),options.styleTask??options.user);return boundActorReply(boundShortInteraction(replyIssue(clean,options)?entry.reply:clean,options.shortInteraction),options.replyActor,options.styleTask??'')}
   for(let attempt=0;attempt<2;attempt++) {
     signal.throwIfAborted()
     const remaining=deadline-now()
     if(remaining<1000)break
     try {
       last=await call({...model,requestTimeoutSec:Math.ceil(remaining/1000),...(attempt?{maxRetries:0}:{})},{...options,json:false,signal,
-        ...(attempt?{temperature:Math.min(Number(options.temperature)||.6,.6),user:options.user+'\n\n【回复修订要求】上一版正文：'+String(decoded.reply??'').slice(0,4000)+'\n请在不丢失问题与检索来源的前提下修订，直接给出完整正文。',system:options.system+(decoded.reason.startsWith('style-')?STYLE_REPAIR:'')+(decoded.reason==='style-library-jargon'?'\n不要谈索引、入库或编号。说眼下没找到合适的书中内容即可，不据此断言书不存在。':'')+'\n请重新组织完整通顺的回复，切实回答本次问题并满足指定字数。不要无意义串词或重复，不要JSON、解释或思考过程。'+(options.minReplyChars&&decoded.reason==='too-short'?`上一版只有${String(decoded.reply??'').replace(/\s/g,'').length}字，未满足长度要求。请依据用户问题及已有资料重写为至少${options.minReplyChars}字的完整答复${options.maxReplyChars?`，不超过${options.maxReplyChars}字`:'，建议比最低要求多写40~80字'}。不能编造事实凑字。`:'' )}:{}),
+        ...(attempt?{temperature:Math.min(Number(options.temperature)||.6,.6),user:options.user+'\n\n【回复修订要求】上一版正文：'+String(decoded.reply??'').slice(0,4000)+'\n请在不丢失问题与检索来源的前提下修订，直接给出完整正文。',system:options.system+(decoded.reason.startsWith('actor-')?ACTOR_REPAIR:'')+(decoded.reason.startsWith('style-')?STYLE_REPAIR:'')+(decoded.reason==='style-library-jargon'?'\n不要谈索引、入库或编号。说眼下没找到合适的书中内容即可，不据此断言书不存在。':'')+'\n请重新组织完整通顺的回复，切实回答本次问题并满足指定字数。不要无意义串词或重复，不要JSON、解释或思考过程。'+(options.minReplyChars&&decoded.reason==='too-short'?`上一版只有${String(decoded.reply??'').replace(/\s/g,'').length}字，未满足长度要求。请依据用户问题及已有资料重写为至少${options.minReplyChars}字的完整答复${options.maxReplyChars?`，不超过${options.maxReplyChars}字`:'，建议比最低要求多写40~80字'}。不能编造事实凑字。`:'' )}:{}),
       })
     }catch(e){
       if(!last)throw e
@@ -66,7 +68,7 @@ export async function generateDirectReply(call,model,options,{onResult=()=>{},no
     decoded=decodeChatReply(last.content)
     if(options.hideSourceURLs)decoded.reply=withoutSourceURLs(decoded.reply)
     decoded.reply=stripBookReferences(decoded.reply)
-    const issue=decoded.reply?(replyIssue(decoded.reply,options)||styleIssue(decoded.reply,options)):null
+    const issue=decoded.reply?(actorReplyIssue(decoded.reply,options.replyActor,options.styleTask??'')||replyIssue(decoded.reply,options)||styleIssue(decoded.reply,options)):null
     if(issue==='too-short'||issue==='too-long') {if(!bestLength||deviation(decoded.reply)<deviation(bestLength.reply))bestLength={...decoded};decoded.reason=issue}
     else if(issue?.startsWith('style-')) {styleFallback??={...decoded};decoded.reason=issue}
     else if(issue)decoded={reply:'',reason:issue}

@@ -92,13 +92,13 @@ try {
   for(const text of ['【对方发送了1张图片】','发张图片','推荐图片','找一张照片','发个卡片'])assert.equal(wantsVideo(text),false,text)
   for(const text of ['发个视频','推荐点视频','来个片子'])assert.equal(wantsVideo(text),true,text)
   cfg.chat.replyEveryMessage=false;cfg.chat.speakChance=.3
-  cfg.qq.groupIds.push('880010002');cfg.chat.admins.push('880010001')
+  cfg.qq.groupIds.push('887000004');cfg.chat.admins.push('887000001')
   const replayStart=probabilitySent.length,replayReads=visionReads
   const ids=[1260665897,82376477,-1262809209,-1578139333,-238471499,-234572325,7001,7002,7003,7004]
-  for(const id of ids)await bot.handleEvent({...event(picture,id),group_id:'880010002',user_id:'880010001'})
+  for(const id of ids)await bot.handleEvent({...event(picture,id),group_id:'887000004',user_id:'887000001'})
   assert.equal(probabilitySent.length-replayStart,3,'真实群号/管理员/启用点播下，0.3十张图仅回三条')
   assert.equal(visionReads-replayReads,3)
-  assert.ok(bot.status().diagnostics.recent.filter(r=>r.target==='880010002').every(r=>r.selection.forced===false))
+  assert.ok(bot.status().diagnostics.recent.filter(r=>r.target==='887000004').every(r=>r.selection.forced===false))
   let wire
   await chat({...cfg.llm,baseUrl:'https://fixture'},{user:[{type:'image_url',image_url:{url:'data:image/png;base64,fixture'}}],thinking:'disabled',maxTokens:1400},{fetch:async(_,opts)=>{wire=JSON.parse(opts.body);return new Response(JSON.stringify({choices:[{message:{content:'观察完成'},finish_reason:'stop'}]}))}})
   assert.deepEqual(wire.thinking,{type:'disabled'})

@@ -23,3 +23,8 @@ cookies*.json
 book/
 words/
 biaoqingbao/
+
+beginscript/
+endscript/
+npc-memory/
+.release/

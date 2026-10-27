@@ -34,12 +34,12 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(3999, '127.0.0.1', r))
 
 const cfg = {
-  qq: { onebotHttp: 'http://127.0.0.1:3999', accessToken: '', groupIds: ['880010007'] },
+  qq: { onebotHttp: 'http://127.0.0.1:3999', accessToken: '', groupIds: ['887000009'] },
   llm: { provider: 'x', apiKey: 'x', model: 'x' },
   chat: {
     nick: '青娥鱼',
     aliases: ['小鱼'],
-    groups: ['880010007'],
+    groups: ['887000009'],
     minGapSec: 75,
     maxPerHour: 20,
     contextMessages: 10,
@@ -55,9 +55,9 @@ const llmChat = async (_llm, { user }) => {
 }
 
 const chat = createChat(cfg, { llmChat, stateFile: null, logFile: null })
-chat.selfId('881000004')
+chat.selfId('3816283038')
 
-const mk = (text, { at = false, uid = 1001, id = 1, gid = '880010007' } = {}) => ({
+const mk = (text, { at = false, uid = 1001, id = 1, gid = '887000009' } = {}) => ({
   post_type: 'message',
   message_type: 'group',
   group_id: gid,
@@ -67,7 +67,7 @@ const mk = (text, { at = false, uid = 1001, id = 1, gid = '880010007' } = {}) =>
   time: Math.floor(Date.now() / 1000),
   sender: { nickname: '路人', card: '路人甲' },
   message: [
-    ...(at ? [{ type: 'at', data: { qq: '881000004' } }] : []),
+    ...(at ? [{ type: 'at', data: { qq: '3816283038' } }] : []),
     { type: 'text', data: { text } },
   ],
 })
@@ -96,7 +96,7 @@ const quiet = createChat(cfg, {
   stateFile: null,
   logFile: null,
 })
-quiet.selfId('881000004')
+quiet.selfId('3816283038')
 const r3 = await quiet.handleEvent(mk('今天晚饭吃什么好呢', { id: 21, uid: 1002 }))
 check('抽中后不被模型false吞掉', r3?.spoke === true)
 
@@ -105,12 +105,12 @@ const r4 = await chat.handleEvent(mk('@青娥鱼 你好', { at: true, id: 31, gi
 check('不在配置里的群不处理', r4 === null)
 
 // 5. 自己发的消息不回
-const r5 = await chat.handleEvent(mk('@青娥鱼 我自己', { at: true, id: 41, uid: 881000004 }))
+const r5 = await chat.handleEvent(mk('@青娥鱼 我自己', { at: true, id: 41, uid: 3816283038 }))
 check('不回复自己', r5 === null)
 
 // 6. 状态里有频率信息
 const st = chat.status()
-check('status 可用', st.maxPerHour === 20 && st.groups.includes('880010007'))
+check('status 可用', st.maxPerHour === 20 && st.groups.includes('887000009'))
 
 
 /* ── 私聊：管理员记录，访客不留痕 ─────────────────── */
@@ -124,7 +124,7 @@ const dm = createChat(cfg, {
   logFile: dmLog,
   privateDir: path.join(tmp, 'private'),
 })
-dm.selfId('881000004')
+dm.selfId('3816283038')
 
 const pm = (text, uid, id) => ({
   post_type: 'message',

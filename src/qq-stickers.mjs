@@ -18,6 +18,7 @@ const bounded=(v,fallback,min,max)=>Number.isFinite(Number(v))?Math.min(max,Math
 export function stickerRequest(text) {
   const input=String(text||'')
   if(/不要|不需要|不用|不许|别.{0,8}(?:发|贴)|(?:怎么|如何).{0,6}(?:发|制作)|(?:制作|生成|画).{0,5}表情包/.test(input))return false
+  if(/会(?:自己|自觉|主动|自动).{0,4}(?:发|贴|挑).{0,8}(?:表情包|动图)/.test(input)&&!/(?:再|请|帮我|给我|来个|来一).{0,5}(?:发|来|贴|挑|表情包|动图|张|个)/.test(input))return false
   return /(?:发|来|给|送|挑|选|贴|丢|整).{0,20}(?:表情包|动图)|(?:表情包|动图).{0,8}(?:发|来|给|送|挑|选|贴|丢)/.test(input)
 }
 export function stickerCapability(store,{explicit=false,selected=null}={}) {
@@ -112,7 +113,7 @@ export function createStickerStore({dir=path.join(DATA,'qq-stickers'),sourceDir=
     raster(bytes)
     return {bytes,type:({png:'image/png',jpg:'image/jpeg',gif:'image/gif',webp:'image/webp'})[item.ext]}
   }
-  return {snapshot,save,read,isAvailable:(id,minutes=snapshot().repeatMinutes)=>usage.available(id,minutes),reserveUse:(id,hash)=>usage.claim(id,hash,snapshot().repeatMinutes)}
+  return {snapshot,save,read,isAvailable:(id,minutes=snapshot().repeatMinutes)=>usage.available(id,minutes),reserveUse:(id,hash,aliases=[])=>usage.claim(id,hash,snapshot().repeatMinutes,aliases)}
 }
 
 // 仅在有可用图片且抽中时调用小型选图请求；错误和超时不影响正文发送。
@@ -145,7 +146,7 @@ export function createStickerPicker({store=createStickerStore(),llmChat,random=M
       const bytes=store.read(id).bytes
       report('selected')
       const hash=createHash('sha256').update(bytes).digest('hex')
-      return {id,claim:()=>store.reserveUse?.(id,hash),segment:{type:'image',data:{file:`base64://${bytes.toString('base64')}`}}}
+      return {id,claim:()=>store.reserveUse?.(id,hash,['qq-md5:'+createHash('md5').update(bytes).digest('hex')]),segment:{type:'image',data:{file:`base64://${bytes.toString('base64')}`}}}
     }catch{report(signal?.aborted?'cancelled':'selection-error');return null}
   }
 }

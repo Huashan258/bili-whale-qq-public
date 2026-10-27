@@ -1,7 +1,8 @@
 import {localVoiceOnline,startLocalVoice} from './local-voice-host.mjs'
+import {trainingPaused} from './voice-studio-config.mjs'
 
 // Runs when DSH starts, without waiting for the first speech request.
-export function createLocalVoiceWatchdog({config,check=localVoiceOnline,ensure=startLocalVoice,logger=()=>{},intervalMs=30000,retryMs=60000,now=Date.now}={}){
+export function createLocalVoiceWatchdog({config,check=localVoiceOnline,ensure=startLocalVoice,logger=()=>{},intervalMs=30000,retryMs=60000,now=Date.now,isTraining=trainingPaused}={}){
   let stopped=false,timer,pending,nextRetry=0
   let state={phase:'idle',lastReadyAt:null,nextRetryAt:null}
   const tick=()=>{
@@ -9,6 +10,7 @@ export function createLocalVoiceWatchdog({config,check=localVoiceOnline,ensure=s
     if(pending)return pending
     pending=(async()=>{
       const cfg=config(),v=cfg.chat?.voice??{}
+      if(isTraining()){state={...state,phase:'training-paused',nextRetryAt:null};return state}
       if(v.provider!=='gpt-sovits'||v.localAutoStart!==true){state={...state,phase:'disabled',nextRetryAt:null};return state}
       try{
         if(await check(cfg)){

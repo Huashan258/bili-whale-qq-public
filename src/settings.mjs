@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
-import { fields, overlayMap } from '../public/settings-schema.js'
+import { fields, overlayMap, allowsDecimal } from '../public/settings-schema.js'
 import { readUiCfg } from '../dsh-plugin/lib/uicfg.mjs'
+import {validateGroupChances} from '../public/group-probabilities.js'
 
 const get = (obj, key) => key.split('.').reduce((v, k) => v?.[k], obj)
 const set = (obj, key, value) => {
@@ -22,7 +23,7 @@ export function validatePatch(patch) {
     if(key==='chat.voice.instruction'&&(typeof v!=='string'||[...v].reduce((n,c)=>n+(/\p{Script=Han}/u.test(c)?2:1),0)>100))fail()
     if (f.type === 'number') {
       if (typeof v !== 'number' || !Number.isFinite(v) || v < f.min || v > f.max) fail()
-      if (!/temperature|speakChance|Minutes|\.chance$/i.test(key) && !Number.isInteger(v)) fail()
+      if (!allowsDecimal(key) && !Number.isInteger(v)) fail()
       if (key === 'share.replyPatrolMinutes' && v > 0 && v < 5) fail()
     } else if (f.type === 'boolean') {
       if (typeof v !== 'boolean') fail()
@@ -31,6 +32,8 @@ export function validatePatch(patch) {
     } else if (f.type === 'list') {
       if (!Array.isArray(v) || v.length > 500 || v.some(x => typeof x !== 'string' || x.length > 2000)) fail()
       if(key==='scroll.reactionKeywords'&&(v.length>30||v.some(x=>!x.trim()||x.length>32)))fail()
+    } else if(f.type==='group-probabilities'){
+      validateGroupChances(v)
     } else if (f.type === 'masters') {
       if (!Array.isArray(v) || v.length > 100) fail()
       const seen = new Set()

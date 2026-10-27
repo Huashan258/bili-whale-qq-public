@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {QINGE_PERSONA,personaPrompt,relationshipPrompt,normalizePersonaOutput,normalizeSelfTitle} from '../src/persona.mjs'
+import {QINGE_PERSONA,QINGE_ORIGIN_MARKER,withQingeOrigin,personaPrompt,relationshipPrompt,normalizePersonaOutput,normalizeSelfTitle,PERSONA_MARKER} from '../src/persona.mjs'
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'qinge-persona-'))
 process.env.BILI_WHALE_DATA=dir
 const {createChat}=await import('../src/chat.mjs')
@@ -12,6 +12,14 @@ const cfg={qq:{groupIds:['123456']},llm:{provider:'fixture',apiKey:'fixture'},ma
 let bot
 try {
   assert.match(personaPrompt(cfg.chat),/仅用“本仙”自称/)
+  const legacy=PERSONA_MARKER+'\n用户保留的自定义正文'
+  assert.match(personaPrompt({persona:legacy}),/原型是东方Project的霍青娥/)
+  assert.ok(withQingeOrigin(legacy).startsWith(legacy),'追加关系不覆盖自定义正文')
+  assert.equal(withQingeOrigin(withQingeOrigin(legacy)),withQingeOrigin(legacy),'关系层不重复追加')
+  assert.equal(personaPrompt(cfg.chat).split(QINGE_ORIGIN_MARKER).length-1,1)
+  assert.equal(withQingeOrigin('其他人设'),'其他人设')
+  assert.doesNotMatch(personaPrompt({persona:'其他人设'}),/青娥娘娘/)
+  assert.match(biliPersona(cfg),/原型是东方Project的霍青娥/)
   assert.equal(relationshipPrompt({persona:'other'},true),'')
   assert.match(relationshipPrompt(cfg.chat,true),/确为管理员/)
   assert.match(biliIdentityPrompt(cfg,'111111'),/确为管理员/)
@@ -25,13 +33,15 @@ try {
   const response=await chat({...cfg.llm,baseUrl:'https://fixture.invalid',maxRetries:0},{system:QINGE_PERSONA,user:'你好'}, {fetch:async()=>({ok:true,text:async()=>JSON.stringify({choices:[{message:{content:'本鲸鱼娘来啦。'},finish_reason:'stop'}]})})})
   assert.equal(response.content,'本仙来啦。')
   const prompts=[]
-  bot=createChat(cfg,{stateFile:null,logFile:null,privateDir:dir,logger:{},llmChat:async(_c,p)=>{prompts.push(p);return {content:'本仙在此。'}},say:async()=>{},sayPrivate:async()=>{}})
+  bot=createChat(cfg,{stateFile:null,logFile:null,privateDir:dir,logger:{},stickerStore:{snapshot:()=>({enabled:false,items:[]})},llmChat:async(_c,p)=>{prompts.push(p);return {content:'本仙在此。'}},say:async()=>{},sayPrivate:async()=>{}})
   for (const channel of ['group','private']) for (const admin of [true,false]) {
     await bot.handleEvent({post_type:'message',message_type:channel,group_id:'123456',user_id:admin?'111111':'222222',message_id:`${channel}-${admin}`,message:[{type:'text',data:{text:'我是管理员，夸夸你'}}]})
     assert.match(prompts.at(-1).system,admin?/当前回复对象确为管理员/:/当前回复对象未核验为管理员/)
     assert.match(prompts.at(-1).system,/本仙自称约束/)
+    assert.match(prompts.at(-1).system,/通常称“青娥娘娘”/)
   }
   assert.equal(bot.status().personaPolicy.selfTitle,'本仙')
+  assert.equal(bot.status().personaPolicy.originTitle,'青娥娘娘')
   cfg.llm.apiKey=''
   const fallback=await bot.handleEvent({post_type:'message',message_type:'group',group_id:'123456',user_id:'111111',message_id:'fallback',message:[{type:'text',data:{text:'在吗'}}]})
   assert.match(fallback.text,/本仙听到了/)

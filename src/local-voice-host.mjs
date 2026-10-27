@@ -5,6 +5,7 @@ import {spawn} from 'node:child_process'
 import {setTimeout as pause} from 'node:timers/promises'
 import {DATA} from './config.mjs'
 import {localVoiceEndpoint,reserveLocalVoiceSlot} from './gpt-sovits.mjs'
+import {trainingPaused} from './voice-studio-config.mjs'
 
 export async function localVoiceOnline(cfg){
   try{const r=await fetch(localVoiceEndpoint(cfg.chat?.voice?.localApiUrl)+'/openapi.json',{signal:AbortSignal.timeout(2000),redirect:'error'});const api=await r.json();return Boolean(r.ok&&api.paths?.['/tts'])}catch{return false}
@@ -16,7 +17,7 @@ async function startOnce(cfg,{dataDir=DATA}={}){
   if(await localVoiceOnline(cfg))return {ok:true,state:'online'}
   const v=cfg.chat?.voice??{},url=new URL(localVoiceEndpoint(v.localApiUrl)),dir=path.resolve(v.localInstallDir||'')
   if(!v.localInstallDir)throw Error('请先填写GPT-SoVITS安装目录')
-  const python=path.join(dir,'runtime','python.exe'),entry=path.join(dir,'api_v2.py'),config=path.join(dir,'GPT_SoVITS','configs','tts_infer.yaml')
+  const python=path.join(dir,'runtime','python.exe'),entry=path.join(dir,'api_v2.py'),config=fs.existsSync(path.join(dataDir,'gpt-sovits-studio.yaml'))?path.join(dataDir,'gpt-sovits-studio.yaml'):path.join(dir,'GPT_SoVITS','configs','tts_infer.yaml')
   if(![python,entry,config].every(f=>fs.existsSync(f)))throw Error('本地语音目录缺少整合包运行时、api_v2.py或推理配置')
   fs.mkdirSync(dataDir,{recursive:true});const receipt=path.join(dataDir,'gpt-sovits-api.json')
   try{const s=JSON.parse(fs.readFileSync(receipt,'utf8'));if(s.dir===dir&&s.endpoint===url.origin&&Number.isInteger(s.pid)&&alive(s.pid))return {ok:true,state:'starting',pid:s.pid}}catch{}
@@ -32,6 +33,7 @@ async function startOnce(cfg,{dataDir=DATA}={}){
 }
 
 export async function startLocalVoice(cfg,{dataDir=DATA}={}){
+  if(trainingPaused(dataDir))throw Error('训练模式下暂停自动启动API，请先恢复对话模式')
   if(await localVoiceOnline(cfg))return {ok:true,state:'online'}
   const release=await reserveLocalVoiceSlot(path.join(dataDir,'gpt-sovits-start.lock'),AbortSignal.timeout(10000))
   try{return await startOnce(cfg,{dataDir})}finally{release()}

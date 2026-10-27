@@ -19,7 +19,7 @@ const cfg = {
 
 const llmChat = async () => ({ content: JSON.stringify({ speak: true, reply: '来了', why: '被点名' }) })
 const chat = createChat(cfg, { llmChat, stateFile: null, logFile: null, say: async (_c, gid) => { sent.push(gid) } })
-chat.selfId('881000004')
+chat.selfId('3816283038')
 
 const mk = (gid, id) => ({
   post_type: 'message',

@@ -39,3 +39,9 @@ console.log('natural-style: 高置信套话/正常口语/引用代码/任务豁�
 calls=0
 const repaired=await generateDirectReply(async()=>({content:++calls===1?'刚才接岔了。且看下一句答得贴不贴切。':'刚才接岔了，你说的是本仙。'}),{requestTimeoutSec:10},{...options,styleTask:'好了又不是人了'})
 assert.equal(calls,2);assert.equal(JSON.parse(repaired.content).reply,'刚才接岔了，你说的是本仙。')
+for(const reply of ['谢邀，在狠狠蹬GPT','草料都交了，总得让它动两步嘛','哈哈，书总不能白读呀']){
+ let turns=0
+ const joked=await generateDirectReply(async()=>{turns++;return {content:reply}},{requestTimeoutSec:10},{...options,styleTask:'你这是把GPT当牛使啊'})
+ assert.equal(turns,1,'正常接梗不被八股修订器反复改写')
+ assert.equal(JSON.parse(joked.content).reply,reply,'短梗不被硬补成说理长文')
+}

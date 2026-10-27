@@ -29,6 +29,8 @@ export function createChatDiagnostics({file=null,now=Date.now}={}) {
     fallback(reason='empty-reply'){const r=scope.getStore();if(r){r.fallback=true;r.fallbackReason=reason}},
     searchResult(fields){const r=scope.getStore();if(r)r.search={...fields}},
     selectionResult(fields){const r=scope.getStore();if(r)r.selection={...fields}},
+    forwardResult(fields){const r=scope.getStore();if(r)r.forward={...fields}},
+    repeatResult(fields){const r=scope.getStore();if(r)r.repeat={...fields}},
     voiceResult(fields){const r=scope.getStore();if(r){r.voice={...r.voice,format:fields.format,reason:fields.reason,...(fields.provider?{provider:fields.provider}:{})};for(const k of ['characters','senderRevision','audioBytes','outputGainDb','actualGainDb','peak'])if(Number.isFinite(fields[k]))r.voice[k]=fields[k]}},
     partsResult({parts,planned,complete}){const r=scope.getStore();if(r)r.replyParts={sent:parts,planned,complete}},
     stickerResult(fields){const r=scope.getStore();if(r)r.sticker={...r.sticker,...fields}},
@@ -41,7 +43,7 @@ export function createChatDiagnostics({file=null,now=Date.now}={}) {
       r.finishedAt=now();r.totalMs=r.finishedAt-r.receivedAt
       r.stage=r.delivered||result?.spoke?'replied':error||r.sendFailed?'failed':'skipped'
       // 原始异常可能包含密钥、私聊正文或上游HTML；只保留固定原因。
-      r.reason=r.stage==='replied'?(r.replyParts?.complete===false?'部分文字已发，后续停止':r.fallback?'本地回执':'发送成功'):r.sendFailed?'发送失败或未确认':error?'处理异常':r.skipReason??(result?.why==='已停止'?'已停止':result?.why==='已暂停'?'已暂停':'规则跳过或未发送')
+        r.reason=r.stage==='replied'?(r.replyParts?.complete===false?'部分回复已发，后续停止':r.fallback?'本地回执':'发送成功'):r.sendFailed?'发送失败或未确认':error?'处理异常':r.skipReason??(result?.why==='已停止'?'已停止':result?.why==='已暂停'?'已暂停':'规则跳过或未发送')
       counts[r.stage]++;if(r.fallback&&r.stage==='replied')counts.fallback++
       pending.delete(r.traceId);recent.push({...r});if(recent.length>80)recent.shift()
       if(file)try {

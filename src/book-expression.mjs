@@ -6,6 +6,7 @@ export function expressionIntent(input) {
   const explicit=/(?:用|借|引用|化用).{0,10}(?:诗|古文|典故|文献).{0,12}(?:表达|安慰|感情|鼓励|思念)|(?:诗意|有文采).{0,8}(?:表达|安慰|回复)/.test(text)
   // Factual requests retain normal source retrieval, rather than becoming emotional performance.
   if(!explicit&&/代码|报错|数据库|端口|接口|配置|token|怎么安装|查询|分析|点评|解释|原文|出处|翻译|论文/.test(text))return null
+  if(/对不起|抱歉|刚才.{0,6}(?:话重|说重|凶了|误会)|别生气|和好/.test(text))return {mood:'释然和解',tone:'认错、修复误会或求和，先核对是谁向谁道歉',goal:'回应具体的道歉或误会，不拿过错惩罚对方；若是自己错了就认清错处，不借古文转移责任',emotions:['宁静','喜悦'],topics:['友情','仁爱'],theme:'reconciliation',explicit}
   // Speech acts: affection, playful rhetorical questions and challenges need imagery too.
   // These are contextual hints, never proof of affection, hostility or administrator identity.
   if (!/我(?:并不|不|没那么|不再)喜欢(?:你|鱼)/.test(text) && /(?:喜欢|喜不喜欢|喜爱|疼|在乎|爱不爱)(?:本仙|你|我|鱼鱼|小鱼)|你.{0,4}(?:喜欢|在乎).{0,3}我/.test(text))

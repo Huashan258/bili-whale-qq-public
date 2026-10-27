@@ -5,8 +5,8 @@ import path from 'node:path'
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'qq-every-message-'))
 process.env.BILI_WHALE_DATA=dir
 const {createChat}=await import('../src/chat.mjs')
-const cfg={qq:{groupIds:['123456','654321']},llm:{provider:'fixture',apiKey:'fixture'},chat:{nick:'青娥鱼',admins:['880010001'],replyEveryMessage:true,outputRateOnly:true,speakChance:1,quote:true,shield:{enabled:false}}}
-const event=(text,id,group='123456',uid='880010001')=>({post_type:'message',message_type:'group',group_id:group,user_id:uid,message_id:id,sender:{nickname:'测试主人'},message:[{type:'text',data:{text}}]})
+const cfg={qq:{groupIds:['123456','654321']},llm:{provider:'fixture',apiKey:'fixture'},chat:{nick:'青娥鱼',admins:['887000001'],replyEveryMessage:true,outputRateOnly:true,speakChance:1,quote:true,shield:{enabled:false}}}
+const event=(text,id,group='123456',uid='887000001')=>({post_type:'message',message_type:'group',group_id:group,user_id:uid,message_id:id,sender:{nickname:'测试主人'},message:[{type:'text',data:{text}}]})
 try {
   let active=0,maxActive=0,calls=0
   const sent=[],prompts=[]
@@ -34,7 +34,7 @@ try {
       assert.equal(p.json,false,'必回模式不再强制JSON')
       assert.match(p.user,/每条必回模式/)
     }
-    assert.equal(sent[i].context.replyToUserId,'880010001','管理员豁免保留真实来源')
+    assert.equal(sent[i].context.replyToUserId,'887000001','管理员豁免保留真实来源')
   }
   assert.equal(bot.status().queuedMessages,0)
   assert.equal(bot.status().catchUp.enabled,false,'必回模式不再用会覆盖消息的补话槽')

@@ -7,6 +7,7 @@ export function wikiQuestion(value) {
   const prefix=text.match(/^(?:谁是|什么是)\s*(.{2,40})$/)
   const subject=(tail?.[1]||head?.[1]||prefix?.[1]||'').replace(/^(?:请问|请|你知道|你认识|告诉我)\s*/,'').trim().replace(/^[「『“"'《]+|[」』”"'》]+$/g,'')
   if(/^(?:我|你|他|她|本仙|主人|管理员|鱼鱼|青娥鱼)(?:的)?(?:名字|姓名|身份|称呼|昵称|来历|信息|资料|背景)$/.test(subject))return ''
+  if(/^(?:我|你|他|她|它|本仙)(?:的)?(?:爹|爸(?:爸)?|父亲|妈(?:妈)?|母亲|父母|主人|管理员|创作者|开发者)$/.test(subject))return ''
   if(!subject||/^(?:我|你|他|她|它|我们|你们|他们|她们|这个人|那个人|刚才那位|主人|管理员|御主|本仙|青娥鱼|鱼鱼|小鱼|Master|魔术师|喜欢|爱情|友情|人生|自己)$/i.test(subject))return ''
   if(/\d{5,}|[\/@=]|密码|账号|手机号|QQ群|群友|群里|怎么|为什么|如何|表达|心情|情感|写|点评|评价|分析/.test(subject))return ''
   return subject
