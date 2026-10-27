@@ -6,8 +6,8 @@ import {AIRUNNING_ROOT,TRPG_DATA,DICE_FILE,SCRIPT_FILE,NPC_MEMORY_ROOT} from './
 export {NPC_MEMORY_ROOT} from './trpg-paths.mjs'
 export const DICE_ROOT=path.join(AIRUNNING_ROOT,'dice-plugin')
 let loaded
-export function loadDiceModule(){return loaded??=import(pathToFileURL(path.join(DICE_ROOT,'index.mjs')).href+'?version=10').catch(e=>{loaded=null;throw e})}
-let catalogueReady;const theatreModule=async()=>{const m=await import(pathToFileURL(path.join(DICE_ROOT,'theatre.mjs')).href+'?version=10');await (catalogueReady??=m.createTheatre({file:DICE_FILE,memoryRoot:NPC_MEMORY_ROOT,memoryAllowed:g=>m.scriptMemoryAllowed(SCRIPT_FILE,g)}).migrateCatalog().catch(e=>{catalogueReady=null;throw e}));return m}
+export function loadDiceModule(){return loaded??=import(pathToFileURL(path.join(DICE_ROOT,'index.mjs')).href+'?version=11').catch(e=>{loaded=null;throw e})}
+let catalogueReady;const theatreModule=async()=>{const m=await import(pathToFileURL(path.join(DICE_ROOT,'theatre.mjs')).href+'?version=11');await (catalogueReady??=m.createTheatre({file:DICE_FILE,memoryRoot:NPC_MEMORY_ROOT,memoryAllowed:g=>m.scriptMemoryAllowed(SCRIPT_FILE,g)}).migrateCatalog().catch(e=>{catalogueReady=null;throw e}));return m}
 let memoryRecorder
 export async function recordNpcGroup(entry){const mod=await theatreModule();memoryRecorder??=mod.createTheatre({file:DICE_FILE,memoryRoot:NPC_MEMORY_ROOT,memoryAllowed:g=>mod.scriptMemoryAllowed(SCRIPT_FILE,g)});return memoryRecorder.recordGroup(entry)}
 export async function npcMemory(cfg,group,name){if(!diceGroups(cfg).includes(String(group)))throw Error('请选择白名单中的群');const mod=await theatreModule();return mod.createTheatre({file:DICE_FILE,memoryRoot:NPC_MEMORY_ROOT,memoryAllowed:g=>mod.scriptMemoryAllowed(SCRIPT_FILE,g)}).memoryStatus(group,name)}

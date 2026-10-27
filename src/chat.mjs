@@ -17,6 +17,7 @@ import {explicitAtSelf,withoutVideoLinks,UNAT_VIDEO_GUIDE} from './video-link-po
 import {groupReplyChance} from '../public/group-probabilities.js'
 import {createDiceAdapter} from './dice-plugin.mjs'
 import {scripts,recordScriptEvent} from './trpg-scripts.mjs'
+import {isNpcAside} from './trpg-aside.mjs'
 import { createStickerPicker, createStickerStore,stickerRequest,stickerCapability } from './qq-stickers.mjs'
 import { searchIntent, createChatSearch, searchPrompt, searchFallback, groundedSearchReply } from './chat-search.mjs'
 import { commandMode, addressTitle, commandNote, addressReply } from './chat-command.mjs'
@@ -606,6 +607,7 @@ export function createChat(cfg, {
 
     const buf = groupBuffer(gid)
     const pendingEntry = buf.find((m) => String(m.id) === String(messageId))
+    if(pendingEntry&&isNpcAside(pendingEntry.text))return null
     const title = pendingEntry && isAdmin(pendingEntry.uid) ? nextAdminTitle(pendingEntry.uid) : ''
     const actor=pendingEntry?{uid:pendingEntry.uid,name:pendingEntry.name,admin:isAdmin(pendingEntry.uid),botId:selfId,botName:c.nick,voiceEnabled:c.voice?.enabled===true,adminTitles:adminTitles(),otherNames:buf.filter(m=>String(m.uid)!==String(pendingEntry.uid)&&!isSelfEntry(m)).map(m=>m.name),textOnly:true}:null
     const lines = clipLines(tailCtx(buf, contextN(), pendingEntry).map((m) => ({
@@ -691,7 +693,7 @@ export function createChat(cfg, {
       try { r = JSON.parse(s) } catch { continue }
       if (!r || String(r.group ?? '') !== String(gid)) continue
       const text = String(r.text ?? '')
-      if (!text) continue
+      if (!text || isNpcAside(text)) continue
       const ts = Math.floor(new Date(r.ts ?? Date.now()).getTime() / 1000)
       if (r.type === 'in') {
         out.unshift({ name: r.from ?? r.uid ?? '某人', text, ts, id: r.id ?? `log-in-${i}`, uid: String(r.uid ?? ''), self: false,atSelf:r.atSelf===true })
@@ -707,6 +709,7 @@ export function createChat(cfg, {
     const out = []
     for (const m of list ?? []) {
       const text = segsToText(m?.message ?? m?.raw_message)
+      if (isNpcAside(m?.message??m?.raw_message))continue
       if (!text) continue
       const uid = String(m?.sender?.user_id ?? m?.user_id ?? '')
       const id = m?.message_id ?? m?.real_id ?? ''
@@ -862,6 +865,7 @@ export function createChat(cfg, {
     const uid = uidOf(ev)
     const name = ev.sender?.card || ev.sender?.nickname || uid
     try{await recordScriptEvent(ev)}catch(e){logger.warn?.('[script] 聊天记录保存失败：'+e.message)}
+    if(isNpcAside(ev.message)){diagnostics.skip('玩家与KP场外交流');return {handled:true,spoke:false,why:'玩家与KP场外交流'}}
     const scriptResult=await (await scripts()).handle(ev,{admin:isAdmin(uid),allowedGroups:[...groupSet()],sendGroup:text=>say(cfg,gid,[{type:'text',data:{text}}],{replyToUserId:uid,signal:lifetime.signal}),sendPrivate:text=>sayPrivate(cfg,uid,[{type:'text',data:{text}}],{signal:lifetime.signal})});if(scriptResult.handled)return scriptResult
     const diceResult=await runDice(ev);if(diceResult)return diceResult
     const quote=await readQuoted(ev,cfg,selfId,{signal:lifetime.signal})
@@ -1151,6 +1155,7 @@ export function createChat(cfg, {
   async function handlePrivate(ev) {
     const uid = uidOf(ev) // 同上：私聊也要能从 sender.user_id 兜住
     if (uid && uid === String(selfId)) return null
+    if(isNpcAside(ev.message))return {handled:true,spoke:false,why:'玩家与KP场外交流'}
     const diceResult=await runDice(ev);if(diceResult)return diceResult
 
     const images = qqImages(ev.message)
@@ -1436,7 +1441,7 @@ export function createChat(cfg, {
         replyEveryMessage:alwaysReply(),
         replyFormat:'text',
         replyParts:{version:3,omitShortPeriod:isQinge(c),shortTextMaxChars:60,enabled:c.splitReplies!==false,minChars:c.splitReplyChars??90,maxParts:QQ_REPLY_PART_LIMIT,gapMs:800,stickerAfterText:true},
-        replySelection:{version:16,diceCharacterNames:true,diceLogMemoryGate:true,diceGlobalNpcs:true,diceJointScenes:true,diceNpcActivation:true,diceScriptLog:true,diceAffinity:true,diceTheatre:true,diceCommands:c.dice?.enabled===true,diceKeeperRegistry:true,perGroupChance:true,groupChances:Object.fromEntries([...groupSet()].map(gid=>[gid,replyChance(gid)])),groupVideoRequiresExplicitAt:true,forwardRecords:true,quotedReplyToSelf:true,quoteAuthorVerified:true,mode:alwaysReply()?'every-message':'probability',chance:replyChance(),strategy:'balanced-per-group',singleGate:true,shortMessages:true,imagesShareChance:true,userTextIntents:true,forcedBypass:true},
+        replySelection:{version:17,diceOocPrefix:true,diceCharacterNames:true,diceLogMemoryGate:true,diceGlobalNpcs:true,diceJointScenes:true,diceNpcActivation:true,diceScriptLog:true,diceAffinity:true,diceTheatre:true,diceCommands:c.dice?.enabled===true,diceKeeperRegistry:true,perGroupChance:true,groupChances:Object.fromEntries([...groupSet()].map(gid=>[gid,replyChance(gid)])),groupVideoRequiresExplicitAt:true,forwardRecords:true,quotedReplyToSelf:true,quoteAuthorVerified:true,mode:alwaysReply()?'every-message':'probability',chance:replyChance(),strategy:'balanced-per-group',singleGate:true,shortMessages:true,imagesShareChance:true,userTextIntents:true,forcedBypass:true},
         replyPolicyVersion:9,
         randomRepeat:{...repeater.status(),enabled:c.repeat?.enabled===true,chance:c.repeat?.chance??.1,text:c.repeat?.text!==false,stickers:c.repeat?.stickers!==false,cooldownSec:c.repeat?.cooldownSec??30},
         actorGrounding:{version:1,currentSender:true,uidBased:true,mentionsAreNotSenders:true,textOnlyPerMessage:true},

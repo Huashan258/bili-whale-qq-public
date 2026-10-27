@@ -1,6 +1,7 @@
 import {getMessage} from './qq.mjs'
 import {qqImages} from './qq-vision.mjs'
 import {hasForwardContent} from './qq-forward.mjs'
+import {isNpcAside} from './trpg-aside.mjs'
 export function quotedMessageId(message){
  const value=Array.isArray(message)?message.find(s=>s?.type==='reply')?.data?.id:String(message??'').match(/\[CQ:reply,(?:[^\]]*,)?id=(-?\d+)(?:,|\])/)?.[1]
  return /^-?\d+$/.test(String(value))&&Number.isSafeInteger(Number(value))?String(value):null
@@ -18,6 +19,7 @@ export function createQuotedReplyReader({lookup=getMessage,now=Date.now}={}){
   const uid=String(m.user_id??m.sender?.user_id??'');if(!/^\d+$/.test(uid))return unresolved
   const images=qqImages(m.message)
   const plain=Array.isArray(m.message)?m.message.filter(s=>s.type==='text').map(s=>String(s.data?.text??'')).join(''):String(m.message??'').replace(/\[CQ:[^\]]+\]/g,'')
+  if(isNpcAside(m.message??m.raw_message))return {id,uid,verified:true,self:false,hiddenOoc:true,text:'[玩家与KP场外交流，NPC不读取]',images:[],imageCount:0,sourceMessage:[]}
   return {id,uid,name:String(m.sender?.card||m.sender?.nickname||uid),verified:true,self:Boolean(selfId)&&uid===String(selfId),text:(plain.trim()|| (images.length?'[图片]':hasForwardContent(m.message)?'[合并转发聊天记录]':'[非文字消息]')).slice(0,500),imageCount:images.length,images,sourceMessage:m.message}
  }
 }

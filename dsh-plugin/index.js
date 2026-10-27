@@ -1,4 +1,4 @@
-// TRPG character names, log memory gate, editor and dedicated settings, 2026-10-28.
+// TRPG out-of-character prefix ignored by NPCs, 2026-10-28.
 /**
  * dsh-whale —— bili-whale-qq 的 DSH 插件胶水层（host 半端）
  * ============================================================================
