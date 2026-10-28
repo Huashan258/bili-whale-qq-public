@@ -32,6 +32,7 @@ import { chat, hasLLM, parseJSON } from './llm.mjs'
 import { dayBucket, whaleCap, noteComment } from './quota.mjs'
 import { deliveryPlan, deliverRecommendation } from './scroll-delivery.mjs'
 import {runHourlyScroll} from './hourly-scroll.mjs'
+import {tryTagComment} from './tag-comment.mjs'
 
 const seenFile = () => path.join(DATA, 'scroll-seen.json')
 const reportFile = () => path.join(DATA, 'scroll-report.md')
@@ -251,8 +252,9 @@ export async function runScroll(cfg, opts = {}) {
     try {
       let item=rec?.recommendation
       if (!item) {
-      const m = await collectMaterial(cand.bvid, cfg,{isActive})
+      const m = await collectMaterial(cand.bvid, cfg,{isActive,readTags:sc.tagCommentEnabled===true})
       if(!isActive())break
+      if(plan.mode!=='comment')await tryTagComment(m,cfg,{dry,isActive,logger:log,deps})
       const text = toPromptText(m, cfg.llm ?? {})
       const who = String(sc.mentionName ?? '').trim()
       // 自己的口味/常看的题材：跟素材一起给模型，让它照着"我"的偏好判断喜不喜欢

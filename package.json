@@ -1,6 +1,6 @@
 {
   "name": "bili-whale-qq",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "B站看视频 → AI 写评论 → QQ群分享。带本地 WebUI 控制台",
@@ -80,6 +80,10 @@
     "test:diary": "node test/diary.mjs",
     "test:diary-auto": "node test/diary-auto.mjs",
     "test:local-voice-watch": "node test/local-voice-watch.mjs",
+    "test:tag-comment": "node test/tag-comment.mjs",
+    "test:workspaces": "node test/workspaces.mjs",
+    "test:computer": "node test/computer-control.mjs",
+    "test:script-reader": "node test/script-reader-host.mjs",
     "test": "node scripts/test-public.mjs",
     "test:public-release": "node test/public-release.mjs"
   },

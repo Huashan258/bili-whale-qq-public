@@ -1,0 +1,12 @@
+    <section class="ocean-card diary-card" aria-labelledby="diary-heading">
+      <div class="section-heading"><div><span class="eyebrow">DEAR DIARY</span><h2 id="diary-heading">把今天，写成一篇日记</h2></div><button class="btn primary" id="diary-generate">✎ 生成今日日记</button></div>
+      <p>以青娥鱼「本仙」的口吻，回顾北京时间今天已保存的 B站与QQ群记录，写成以感怀为主、可引用古文的文言日记；当天事件可略去，不列视频链接或流水账。标题与正文合计最多3000字（含标点），不设最低字数。保存到项目 words 文件夹；使用已配置的模型，会消耗 token。</p>
+      <p class="muted">只整理实际留存的记录，不补拉B站、不包含QQ私聊；未保存的信息会标明缺口。生成期间可切换页面，刷新后仍可查看进度。</p>
+      <p id="diary-auto-status" class="muted">正在读取自动日记设置…</p>
+      <p id="diary-publish-status" class="muted" role="status">正在读取专栏发布状态…</p>
+      <a id="diary-collection-link" class="btn ghost sm" hidden target="_blank" rel="noopener noreferrer">查看日记文集</a>
+      <ul id="diary-publish-list"></ul>
+      <p id="diary-status" role="status" aria-live="polite">正在读取日记状态…</p>
+      <progress id="diary-progress" hidden aria-label="日记生成进度"></progress>
+      <a id="diary-download" class="btn ghost" hidden>下载日记 TXT</a>
+    </section>

@@ -16,6 +16,7 @@ try{
  assert.equal(actual.complete,true);assert.equal(actual.score,6);assert.equal(actual.coverage.comments,1)
  let time=100000000,lastWatch=0,reads=0,model=0,claims=0
  const sent=[],deps={dataDir:dir,now:()=>time,policyStatus:async()=>({nextWatchAt:lastWatch?lastWatch+360000:0,nextShareAt:0}),collect:async id=>{reads++;lastWatch=time;return {video:{bvid:id,title:'视频'+id,aid:1,stat:{},desc:'已读取的简介'},subtitle:{lines:['已读取的官方字幕']}}},readReactions:async m=>{const i=ids.indexOf(m.video.bvid),samples=[i===2?'妈妈'.repeat(20):'?'.repeat(i)];const counts=reactionCounts(samples,cfg.scroll.reactionKeywords);return {samples,counts,score:reactionScore(counts),coverage:{comments:1,danmaku:1},complete:true}},chat:async()=>{model++;return {content:'这段处理挺有意思，来看看。'}},claimShare:async()=>{claims++},sendGroup:async(_c,id,text)=>sent.push({id,text}),sleep:async()=>{}}
+ let tagHooks=0;cfg.scroll.tagCommentEnabled=true;const originalCollect=deps.collect;deps.collect=async(id,c,opts)=>{assert.equal(opts.readTags,true);return originalCollect(id)};deps.tagComment=async()=>{tagHooks++}
  const options={deps},helpers={gather:async()=>ids.map(bvid=>({bvid}))}
  const dry=await runHourlyScroll(cfg,{...options,dry:true},helpers);assert.equal(dry.sent.length,0);assert.equal(reads,0)
  for(let i=0;i<10;i++){
@@ -25,7 +26,7 @@ try{
   assert.equal(readHourlyScroll(dir).items.length,i+1)
   if(i<9)time+=360000
  }
- assert.equal(reads,10);assert.equal(model,0)
+ assert.equal(reads,10);assert.equal(model,0);assert.equal(tagHooks,10,'每个实际观看视频仅进入一次标签评论流程')
  const s=readHourlyScroll(dir)
  assert.equal(s.items[2].reactions.score,20,'本小时旧采样按新词重新计数')
  cfg.scroll.reactionKeywords=['?']

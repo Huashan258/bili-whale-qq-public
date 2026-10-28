@@ -124,7 +124,13 @@
     "perDay": 3,
     "biliPrivateEnabled": false,
     "biliPrivateUsers": [],
-    "enabled": false
+    "enabled": false,
+    "tagCommentEnabled": false,
+    "tagCommentKeywords": [
+      "DeepSeek"
+    ],
+    "tagCommentMaxPerHour": 1,
+    "tagCommentPrompt": ""
   },
   "share": {
     "_说明": "自己找片。discover=true 时从热门/排行榜随机看，watchList 里的优先。",
@@ -182,5 +188,15 @@
     "model": "deepseek-flash",
     "maxImages": 3,
     "detail": "auto"
+  },
+  "computer": {
+    "enabled": false,
+    "allowActions": false,
+    "groupResults": false,
+    "maaDir": "",
+    "fileRoots": [],
+    "screenshotProcesses": [
+      "MAA"
+    ]
   }
 }

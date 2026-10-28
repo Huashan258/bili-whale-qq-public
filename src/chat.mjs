@@ -1,4 +1,5 @@
 import {sendQQTextParts,sendQQReplySticker,QQ_REPLY_PART_LIMIT} from './qq-reply-parts.mjs'
+import {createComputerControl,computerIntent} from './computer-control.mjs'
 import {createCompanionMood} from './companion-mood.mjs'
 import { personaPrompt, relationshipPrompt, isQinge } from './persona.mjs'
 import { WEB_GROUNDING } from './web-reader.mjs'
@@ -15,8 +16,8 @@ import {createQuotedReplyReader,quoteSummary,quoteContext} from './qq-quoted-rep
 import {createForwardReader,hasForwardContent,FORWARD_GUARD} from './qq-forward.mjs'
 import {explicitAtSelf,withoutVideoLinks,UNAT_VIDEO_GUIDE} from './video-link-policy.mjs'
 import {groupReplyChance} from '../public/group-probabilities.js'
-import {createDiceAdapter} from './dice-plugin.mjs'
-import {scripts,recordScriptEvent} from './trpg-scripts.mjs'
+import {createDiceAdapter} from './dice-plugin.mjs?scriptReader=1'
+import {scripts,recordScriptEvent} from './trpg-scripts.mjs?scriptReader=1'
 import {isNpcAside} from './trpg-aside.mjs'
 import { createStickerPicker, createStickerStore,stickerRequest,stickerCapability } from './qq-stickers.mjs'
 import { searchIntent, createChatSearch, searchPrompt, searchFallback, groundedSearchReply } from './chat-search.mjs'
@@ -41,7 +42,7 @@ import path from 'node:path'
 import { DATA, ensureData } from './config.mjs'
 import { hasLLM, chat as callLLM, parseJSON } from './llm.mjs'
 import { scan, createMeter, shieldCfg, kindLabel } from './shield.mjs'
-import { sendGroup, sendPrivate, getGroupMsgHistory } from './qq.mjs'
+import { sendGroup, sendPrivate, getGroupMsgHistory } from './qq.mjs?scriptReader=1'
 import { CHAT_SYSTEM, EVERY_MESSAGE_SYSTEM, SELECTED_MESSAGE_SYSTEM, CATCHUP_SYSTEM, chatUserPrompt, catchUpPrompt, PRIVATE_SYSTEM, privateUserPrompt, GUARD_TEXT } from './prompt.mjs'
 import { wantsVideo } from './share.mjs'
 
@@ -228,6 +229,7 @@ export function createChat(cfg, {
   readQuoted = createQuotedReplyReader(),
   readForward = createForwardReader(),
   diceHandler = null,
+  computerHandler = null,
   sendVoice: rawSendVoice = createQQVoiceSender(),
   voiceRandom = Math.random,
   replyRandom = Math.random,
@@ -246,6 +248,7 @@ export function createChat(cfg, {
 } = {}) {
   const lifetime=new AbortController()
   const dice=diceHandler??createDiceAdapter()
+  const computer=computerHandler??createComputerControl()
   const repeater=createQqRepeater({file:logFile?path.join(path.dirname(logFile),'qq-repeat.json'):null,random:repeatRandom})
   const voiceTurns=createVoiceTurnQueue();let voiceTurnSerial=0
   const deliveryFormats=new Map()
@@ -269,6 +272,22 @@ export function createChat(cfg, {
   const say=(...args)=>deliver(()=>rawSay(...args))
   const sayPrivate=(...args)=>deliver(()=>rawSayPrivate(...args))
   const sendVoice=(...args)=>deliver(()=>rawSendVoice(...args))
+  async function runComputer(ev){
+    const uid=uidOf(ev),result=await computer(ev.message,cfg,{admin:isAdmin(uid),signal:lifetime.signal,requestId:ev.message_id==null?'':`${uid}:${ev.message_type}:${ev.group_id??''}:${ev.message_id}`,messageTime:ev.time})
+    if(!result?.handled)return null
+    diagnostics.selectionResult({forced:true,forcedReasons:['computer-command'],mode:'computer'})
+    if(result.denied)return {...result,spoke:false}
+    const segments=[{type:'text',data:{text:result.text}}]
+    if(result.image)segments.push({type:'image',data:{file:'base64://'+result.image.toString('base64')}})
+    const intent=computerIntent(ev.message),groupResults=(cfg.computer??cfg.raw?.computer)?.groupResults===true
+    if(ev.message_type==='group'&&groupResults&&!['file','list'].includes(intent?.kind)){
+      await say(cfg,String(ev.group_id),segments,{replyToUserId:uid,signal:lifetime.signal})
+      return {handled:true,spoke:true,text:'本机查询已回复原群'}
+    }
+    await sayPrivate(cfg,uid,segments,{signal:lifetime.signal,requireReceipt:true})
+    if(ev.message_type==='group')await say(cfg,String(ev.group_id),[{type:'text',data:{text:'本机查询结果已私聊发送'}}],{replyToUserId:uid,signal:lifetime.signal})
+    return {handled:true,spoke:true,text:'本机查询已私聊返回'}
+  }
   async function runDice(ev){
     const controlText=Array.isArray(ev.message)?ev.message.filter(s=>s?.type==='text').map(s=>s.data?.text??'').join(''):String(ev.message??'')
     const npcControl=/^[.。]npc\s+(?:use|stop|list)(?:\s|$)/i.test(controlText.trim())
@@ -276,7 +295,7 @@ export function createChat(cfg, {
     const uid=uidOf(ev),group=ev.message_type==='group'?String(ev.group_id):'',admin=isAdmin(uid)
     const result=await dice(ev,{selfId,admin,allowedGroups:[...groupSet()],
       generate:async task=>{if(stopped)throw Error('接话已停止');const budget=meter.check(uid,{isAdmin:admin});if(!budget.ok)throw Error('当前AI额度不足');const r=await diagnostics.model(()=>rawLlmChat({...cfg.llm,requestTimeoutSec:45,maxRetries:0},{system:task.system,user:task.user,json:task.json===true,maxTokens:Math.min(3000,task.maxChars*3+300),temperature:.7,thinking:'disabled',replyPrepared:true,replyStylePrepared:true,replyLengthPrepared:true,signal:lifetime.signal}));noteUsage(uid,r.usage,'dice-'+task.kind,admin);if(stopped||paused())throw Error('接话已暂停');return r.content},
-      sendGroup:text=>say(cfg,group,[{type:'text',data:{text}}],{replyToUserId:uid,signal:lifetime.signal}),
+      sendGroup:(text,metadata)=>say(cfg,group,[{type:'text',data:{text}}],{replyToUserId:uid,signal:lifetime.signal,scriptTurns:metadata?.scriptTurns}),
       sendPrivate:text=>sayPrivate(cfg,uid,[{type:'text',data:{text}}],{signal:lifetime.signal,requireReceipt:true})})
     if(!result?.handled)return null
     diagnostics.selectionResult({forced:true,forcedReasons:['dice-command'],mode:'dice'})
@@ -710,6 +729,7 @@ export function createChat(cfg, {
     for (const m of list ?? []) {
       const text = segsToText(m?.message ?? m?.raw_message)
       if (isNpcAside(m?.message??m?.raw_message))continue
+      if(computerIntent(m?.message??m?.raw_message))continue
       if (!text) continue
       const uid = String(m?.sender?.user_id ?? m?.user_id ?? '')
       const id = m?.message_id ?? m?.real_id ?? ''
@@ -864,6 +884,7 @@ export function createChat(cfg, {
     const gid = String(ev.group_id)
     const uid = uidOf(ev)
     const name = ev.sender?.card || ev.sender?.nickname || uid
+    const computerResult=await runComputer(ev);if(computerResult)return computerResult
     try{await recordScriptEvent(ev)}catch(e){logger.warn?.('[script] 聊天记录保存失败：'+e.message)}
     if(isNpcAside(ev.message)){diagnostics.skip('玩家与KP场外交流');return {handled:true,spoke:false,why:'玩家与KP场外交流'}}
     const scriptResult=await (await scripts()).handle(ev,{admin:isAdmin(uid),allowedGroups:[...groupSet()],sendGroup:text=>say(cfg,gid,[{type:'text',data:{text}}],{replyToUserId:uid,signal:lifetime.signal}),sendPrivate:text=>sayPrivate(cfg,uid,[{type:'text',data:{text}}],{signal:lifetime.signal})});if(scriptResult.handled)return scriptResult
@@ -1155,6 +1176,7 @@ export function createChat(cfg, {
   async function handlePrivate(ev) {
     const uid = uidOf(ev) // 同上：私聊也要能从 sender.user_id 兜住
     if (uid && uid === String(selfId)) return null
+    const computerResult=await runComputer(ev);if(computerResult)return computerResult
     if(isNpcAside(ev.message))return {handled:true,spoke:false,why:'玩家与KP场外交流'}
     const diceResult=await runDice(ev);if(diceResult)return diceResult
 
@@ -1334,7 +1356,7 @@ export function createChat(cfg, {
   const messageQueues=new Map()
   let queuedMessages=0
   async function handleEvent(ev) {
-    if(ev&&['message','message_sent'].includes(ev.post_type)&&ev.message_type==='group'&&groupSet().has(String(ev.group_id))&&(ev.post_type==='message_sent'||uidOf(ev)&&uidOf(ev)===String(selfId))){try{await recordScriptEvent(ev)}catch(e){logger.warn?.('[script] 自身消息记录失败：'+e.message)}}
+    if(ev&&['message','message_sent'].includes(ev.post_type)&&ev.message_type==='group'&&groupSet().has(String(ev.group_id))&&(ev.post_type==='message_sent'||uidOf(ev)&&uidOf(ev)===String(selfId))){try{await recordScriptEvent(ev,{self:true})}catch(e){logger.warn?.('[script] 自身消息记录失败：'+e.message)}}
     if (!ev || ev.post_type !== 'message') return null
     if (!['private','group'].includes(ev.message_type))return null
     const channel=ev.message_type==='group'?`group:${ev.group_id}`:`private:${uidOf(ev)}`
@@ -1437,11 +1459,12 @@ export function createChat(cfg, {
       try{outputRate=qqOutputLimit.status()}catch{}
       return {
         outputRate,
+        computerControl:{version:2,enabled:cfg.computer?.enabled===true,allowActions:cfg.computer?.allowActions===true,adminOnly:true,groupResults:cfg.computer?.groupResults===true,fileResults:'private',privateResults:cfg.computer?.groupResults!==true,maa:true,resources:true,textFiles:true,windowCapture:true,persistentActionReceipts:true},
         outputRateOnly:rateOnly(),
         replyEveryMessage:alwaysReply(),
         replyFormat:'text',
         replyParts:{version:3,omitShortPeriod:isQinge(c),shortTextMaxChars:60,enabled:c.splitReplies!==false,minChars:c.splitReplyChars??90,maxParts:QQ_REPLY_PART_LIMIT,gapMs:800,stickerAfterText:true},
-        replySelection:{version:17,diceOocPrefix:true,diceCharacterNames:true,diceLogMemoryGate:true,diceGlobalNpcs:true,diceJointScenes:true,diceNpcActivation:true,diceScriptLog:true,diceAffinity:true,diceTheatre:true,diceCommands:c.dice?.enabled===true,diceKeeperRegistry:true,perGroupChance:true,groupChances:Object.fromEntries([...groupSet()].map(gid=>[gid,replyChance(gid)])),groupVideoRequiresExplicitAt:true,forwardRecords:true,quotedReplyToSelf:true,quoteAuthorVerified:true,mode:alwaysReply()?'every-message':'probability',chance:replyChance(),strategy:'balanced-per-group',singleGate:true,shortMessages:true,imagesShareChance:true,userTextIntents:true,forcedBypass:true},
+        replySelection:{version:18,diceScriptReader:true,diceStructuredTurns:true,diceOocPrefix:true,diceCharacterNames:true,diceLogMemoryGate:true,diceGlobalNpcs:true,diceJointScenes:true,diceNpcActivation:true,diceScriptLog:true,diceAffinity:true,diceTheatre:true,diceCommands:c.dice?.enabled===true,diceKeeperRegistry:true,perGroupChance:true,groupChances:Object.fromEntries([...groupSet()].map(gid=>[gid,replyChance(gid)])),groupVideoRequiresExplicitAt:true,forwardRecords:true,quotedReplyToSelf:true,quoteAuthorVerified:true,mode:alwaysReply()?'every-message':'probability',chance:replyChance(),strategy:'balanced-per-group',singleGate:true,shortMessages:true,imagesShareChance:true,userTextIntents:true,forcedBypass:true},
         replyPolicyVersion:9,
         randomRepeat:{...repeater.status(),enabled:c.repeat?.enabled===true,chance:c.repeat?.chance??.1,text:c.repeat?.text!==false,stickers:c.repeat?.stickers!==false,cooldownSec:c.repeat?.cooldownSec??30},
         actorGrounding:{version:1,currentSender:true,uidBased:true,mentionsAreNotSenders:true,textOnlyPerMessage:true},

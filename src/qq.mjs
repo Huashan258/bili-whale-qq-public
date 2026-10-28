@@ -7,14 +7,15 @@
  */
 
 import { qqOutputLimit } from './qq-output-limit.mjs'
-import {recordScriptSend} from './trpg-scripts.mjs'
+import {recordScriptSend,registerScriptTurns} from './trpg-scripts.mjs?scriptReader=1'
 
-async function call(cfg, action, params, {replyToUserId='',signal,beforeDispatch,scriptText}={}) {
+async function call(cfg, action, params, {replyToUserId='',signal,beforeDispatch,scriptText,scriptTurns}={}) {
   const admins=new Set((cfg.chat?.admins??[]).map(String))
   const adminReply=action==='send_private_msg'?admins.has(String(params.user_id)):admins.has(String(replyToUserId))
   if (!adminReply && (['send_group_msg','send_private_msg','send_msg','send_group_ai_record'].includes(action))) await qqOutputLimit.reserve()
   signal?.throwIfAborted()
   await beforeDispatch?.()
+  registerScriptTurns(params.group_id,params.message,scriptTurns)
   const url = cfg.qq.onebotHttp.replace(/\/+$/, '') + '/'
   const headers = { 'content-type': 'application/json' }
   if (cfg.qq.accessToken) headers.authorization = `Bearer ${cfg.qq.accessToken}`
@@ -32,7 +33,7 @@ async function call(cfg, action, params, {replyToUserId='',signal,beforeDispatch
     throw Object.assign(new Error(`OneBot ${action} 失败：retcode=${j.retcode} ${j.wording ?? j.message ?? ''}`),{onebotRejected:true})
   }
   // Recording failure must never turn a successful QQ delivery into a retry.
-  try{await recordScriptSend(action,params,j,scriptText)}catch(e){console.warn('[script] 已发送消息记录失败：'+e.message)}
+  try{await recordScriptSend(action,params,j,scriptText,scriptTurns)}catch(e){console.warn('[script] 已发送消息记录失败：'+e.message)}
   return j
 }
 

@@ -8,6 +8,7 @@ import {chat,parseJSON} from './llm.mjs'
 import {generateDirectReply} from './chat-response.mjs'
 import {biliPersona} from './bili-identity.mjs'
 import {deliverRecommendation,hourlyDeliveryPlan} from './scroll-delivery.mjs'
+import {tryTagComment} from './tag-comment.mjs'
 
 const HOUR=3600000
 export function readHourlyScroll(dataDir=DATA){try{return JSON.parse(fs.readFileSync(path.join(dataDir,'hourly-scroll.json'),'utf8'))}catch{return null}}
@@ -45,12 +46,13 @@ export async function runHourlyScroll(cfg,opts,{gather,readSeen=()=>({}),writeSe
    if(!s.pool.length){const seen=new Set(s.items.map(x=>x.bvid)),known=readSeen();s.pool=(await gather(cfg,cfg.scroll??{},log,deps)).filter(v=>!seen.has(v.bvid)&&!known[v.bvid]);save(s)}
    const cand=s.pool.shift();if(!cand){save(s);return result(s,'候选不足十个，继续等待新候选',now()+6*60000)}
    save(s)
-   const material=await (deps.collect??collect)(cand.bvid,cfg,{isActive})
+   const material=await (deps.collect??collect)(cand.bvid,cfg,{isActive,readTags:cfg.scroll?.tagCommentEnabled===true})
    let reactions
    try{reactions=await (deps.readReactions??readVideoReactions)(material,cfg,{isActive})}catch(e){if(e.biliPolicy||e.commentRisk)throw e;reactions={score:0,counts:{},complete:false,coverage:{},errors:['互动统计未完成']}}
    if(!isActive())return result(s,'已停止，未继续采集',now()+60000)
    s.items.push({bvid:cand.bvid,title:material.video.title,aid:material.video.aid,mid:String(material.video.ownerMid??''),material:toPromptText(material,cfg.llm).slice(0,6500),reactions,readAt:now()});save(s)
    const known=readSeen();known[cand.bvid]={ts:now(),verdict:'hourly-watched',reason:'已纳入小时互动采样比较'};writeSeen(known)
+   await tryTagComment(material,cfg,{dry:opts.dry,isActive,logger:log,deps})
    log(`小时比较：已读${s.items.length}/10，选词计数 ${JSON.stringify(reactions.counts?.byKeyword??{})}${reactions.complete?'':'（统计不完整）'}`)
    if(s.items.length<10){const p=await (deps.policyStatus??(()=>biliPolicy.status()))();return {...result(s,'已保存本条统计，读满十个后再选',p.nextWatchAt||now()+6*60000),candidates:1,judged:[{bvid:cand.bvid,reactions}]}}
   }

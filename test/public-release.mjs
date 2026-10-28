@@ -12,6 +12,8 @@ assert.equal(cfg.share.replyPatrolMinutes,0);assert.equal(cfg.chat.voice.instruc
 assert.equal(cfg.qq.wsToken,'');assert.equal(cfg.bili.cookie_file,'')
 for(const k of ['localInstallDir','localReferenceAudio','localPromptText'])assert.equal(cfg.chat.voice[k],'')
 assert.equal(cfg.chat.voice.localAutoStart,false);assert.equal(cfg.chat.voice.localGainDb,0)
+assert.equal(pkg.version,'0.3.0');assert.equal(cfg.computer.enabled,false);assert.equal(cfg.computer.groupResults,false);assert.equal(cfg.computer.allowActions,false);assert.equal(cfg.computer.maaDir,'');assert.deepEqual(cfg.computer.fileRoots,[]);assert.equal(cfg.scroll.tagCommentEnabled,false)
+assert.ok(fs.existsSync(path.join(root,'scripts/computer-bridge.ps1')),'PowerShell bridge must ship with the public source');assert.equal(fs.readFileSync(path.join(root,'scripts/computer-bridge.ps1')).subarray(0,3).toString('hex'),'efbbbf','Windows PowerShell script keeps its UTF-8 BOM')
 function credentials(o){for(const [k,v]of Object.entries(o??{})){if(/api.?key|token|password|sessdata|bili_jct|buvid/i.test(k)&&typeof v==='string')assert.ok(!v||v.startsWith('env:'),'Credential literal in config');if(v&&typeof v==='object')credentials(v)}}credentials(cfg)
 for(const f of ['config.json','.env','HANDOVER.md','项目总览与维护指南.md','public/assets/whale/portrait.png'])assert.equal(fs.existsSync(path.join(root,f)),false,'Private file included: '+f)
 const excluded=new Set(['.git','.data','node_modules','book','words','biaoqingbao','.idea','tmp'])

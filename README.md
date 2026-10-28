@@ -6,6 +6,12 @@
 
 GitHub：[Huashan258/bili-whale-qq-public](https://github.com/Huashan258/bili-whale-qq-public)。
 
+## v0.3.0 · 2026-10-28
+
+新增独立工作台、DeepSeek真实标签自主评论、Windows管理员本机助手、完整剧本阅读与角色/KP/场外注释临时筛选。骰子子模块锁定v1.1.0。参见[维护入口](docs/MAINTENANCE.md)与[更新记录](CHANGELOG.md)。
+
+本机助手和标签评论在公开示例中默认关闭。字体、音色、书库、账号及运行数据由使用者提供。
+
 ## 功能
 
 | 模块 | 能力 |
@@ -26,6 +32,15 @@ GitHub：[Huashan258/bili-whale-qq-public](https://github.com/Huashan258/bili-wh
 - 书库脚本使用Python 3，PDF/DOCX/旧DOC等格式分别依赖相应解析库或转换工具；见[书库说明](docs/BOOKS.md)。
 
 ## 快速开始
+
+首次使用Git建议：
+
+```sh
+git clone --recurse-submodules https://github.com/Huashan258/bili-whale-qq-public.git
+cd bili-whale-qq-public
+```
+
+也可下载Release中的完整源码ZIP（已含骰子）；GitHub自动Source code压缩包需另初始化子模块。
 
 在本仓库目录执行：
 
@@ -64,7 +79,7 @@ npm start
 
 ## 回复、语音与表情
 
-普通文字与图片共用概率选择；@、叫名字和明确任务等有独立触发规则。长文字可按句意拆为最多三条。表情按语境和图库设置选择，同图重复间隔可调。
+普通文字与图片共用概率选择；@、叫名字和明确任务等有独立触发规则。长文字可按句意拆为最多五条。表情按语境和图库设置选择，同图重复间隔可调。
 
 QQ原生语音、CosyVoice或本地GPT-SoVITS短语音成功后均可按现有规则发表情。未知回执不盲目补发，图片失败不重发已成功语音。语音试听在WebUI生成，最多200字，不发QQ群；本地模型不调用百炼，云端模型按提供方计费。
 

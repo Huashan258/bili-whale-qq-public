@@ -14,7 +14,7 @@ try {
     active++;maxActive=Math.max(maxActive,active);prompts.push(prompt)
     await new Promise(r=>setImmediate(r));active--
     calls++
-    const target=prompt.user.trim().split('\n').at(-1).replace(/^[^：]*：/,'')
+    const target=prompt.styleTask
     if(target==='啊啊啊')throw Error('fixture model unavailable')
     return {content:target==='喵'?'':target==='喵呜'?'喵呜～听见啦':JSON.stringify({speak:false,reply:'收到咕咕啦'})}
   },say:async(_cfg,gid,message,context)=>sent.push({gid,message,context}),sayPrivate:async(_cfg,uid,message)=>sent.push({uid,message})})
@@ -26,13 +26,13 @@ try {
   assert.deepEqual(sent.map(s=>s.message[0].data.id),['1','2','3','4'])
   assert.equal(maxActive,1,'同一会话模型调用必须串行')
   for(let i=0;i<4;i++) {
-    const promptsForTarget=prompts.filter(p=>p.user.trim().endsWith('：'+texts[i]))
+    const promptsForTarget=prompts.filter(p=>p.styleTask===texts[i])
     assert.ok(promptsForTarget.length>=1&&promptsForTarget.length<=2)
     for(const p of promptsForTarget){
       assert.match(p.system,/每一条新消息都必须/)
       assert.doesNotMatch(p.system,/拿不准就别说|只是在刷表情.*不说|只输出 JSON/)
       assert.equal(p.json,false,'必回模式不再强制JSON')
-      assert.match(p.user,/每条必回模式/)
+      assert.match(p.user,/必须回应当前目标消息/);assert.equal(p.replyActor.uid,'887000001');assert.equal(p.styleTask,texts[i])
     }
     assert.equal(sent[i].context.replyToUserId,'887000001','管理员豁免保留真实来源')
   }

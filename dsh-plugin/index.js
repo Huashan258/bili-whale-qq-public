@@ -1,4 +1,4 @@
-// TRPG out-of-character prefix ignored by NPCs, 2026-10-28.
+// Admin program queries can return directly to their QQ group, 2026-10-28.
 /**
  * dsh-whale —— bili-whale-qq 的 DSH 插件胶水层（host 半端）
  * ============================================================================
@@ -434,7 +434,9 @@ function segsToText(message) {
 }
 
 /** 把 '../../src/foo.mjs' 变成能 import 的 file:// URL（Windows 盘符必须这么转） */
-const srcUrl = (rel) => pathToFileURL(join(SRC_DIR, rel)).href
+// Native ESM imports remain cached after host HMR. Bump this revision when
+// changing runtime entry modules so a plugin reload actually loads the changes.
+const srcUrl = (rel) => pathToFileURL(join(SRC_DIR, rel)).href+'?hostRevision=20261028-computerGroup1'
 
 /**
  * 监督者轮询间隔。

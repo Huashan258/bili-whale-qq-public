@@ -44,6 +44,7 @@ import { readJsonlTail } from './chat-diagnostics.mjs'
 import {readChatHistory} from './chat-history.mjs'
 import {DICE_ROOT,loadDiceModule,diceStatus,diceGroups,setDiceKeeper,clearDicePlayers,diceTheatre,diceTheatreDefaults,npcMemory,editNpcMemory} from './dice-plugin.mjs'
 import {scripts} from './trpg-scripts.mjs'
+import {scriptLibrary,readScript,downloadScript} from './script-reader.mjs'
 
 // 版本太旧时 prompt 级别的报错很晦涩（比如 import.meta.dirname 不存在），
 // 不如在入口就把话说清楚
@@ -593,6 +594,8 @@ const routes = {
   async 'POST /api/dice/npc-memory'(body){return {ok:true,...await editNpcMemory(cfg(),body)}},
   async 'GET /api/dice/npc-memory'(_,url){return npcMemory(cfg(),url.searchParams.get('group'),url.searchParams.get('name'))},
   async 'GET /api/dice/scripts'(){return (await scripts()).status()},
+  async 'GET /api/dice/script-library'(){return scriptLibrary(cfg())},
+  async 'GET /api/dice/script-reader'(_body,url){const p=url.searchParams;return readScript(cfg(),{group:p.get('group'),id:p.get('id'),offset:Number(p.get('offset')??0),limit:Number(p.get('limit')??100),hidden:JSON.parse(p.get('hidden')??'[]'),hideOoc:p.get('hideOoc')==='1',hideKp:p.get('hideKp')==='1',kpSpeaker:p.get('kpSpeaker')??'',query:p.get('q')??''})},
   async 'POST /api/dice/scripts'(body){const group=String(body.group??'');if(!diceGroups(cfg()).includes(group))throw Error('请选择白名单中的群');return {ok:true,...await (await scripts()).control(group,String(body.op??''),String(body.name??''),{uid:'webui'})}},
   async 'POST /api/dice/roll'(body){const mod=await loadDiceModule();return {...mod.rollCommand(String(body.expression??'d100')),preview:true,sentQQ:false}},
   async 'POST /api/dice/kp'(body){return {ok:true,keeper:await setDiceKeeper(cfg(),body)}},
@@ -850,8 +853,12 @@ const routes = {
 }
 
 function serveStatic(req, res, pathname) {
-  if(['/dice-lab.html','/dice-controls.js'].includes(pathname)){try{const bytes=fs.readFileSync(path.join(DICE_ROOT,'public',pathname==='/dice-lab.html'?'index.html':'controls.js'));res.writeHead(200,{'content-type':pathname.endsWith('.js')?'application/javascript; charset=utf-8':'text/html; charset=utf-8','cache-control':'no-store'});return res.end(bytes)}catch{res.writeHead(404);return res.end('Dice plugin not installed')}}
-  const rel = pathname === '/' ? '/index.html' : pathname
+  const fonts={'/fonts/heading-heavy.otf':'SourceHanSerifCN-Heavy-4.otf','/fonts/body-regular.otf':'SourceHanSansCN-Regular.otf','/fonts/body-medium.otf':'SourceHanSansCN-Medium.otf'}
+  if(Object.hasOwn(fonts,pathname)){const file=path.join(ROOT,'..','fonts',fonts[pathname]);if(!fs.existsSync(file)){res.writeHead(404);return res.end('Optional local font not installed')}res.writeHead(200,{'content-type':'font/otf','cache-control':'public, max-age=86400','x-content-type-options':'nosniff'});return fs.createReadStream(file).pipe(res)}
+  const readerAssets={'/script-reader.html':'script-reader.html','/script-reader.js':'script-reader.js','/script-reader.css':'script-reader.css'}
+  if(Object.hasOwn(readerAssets,pathname)){try{let bytes=fs.readFileSync(path.join(DICE_ROOT,'public',readerAssets[pathname]));if(pathname.endsWith('.html'))bytes=bytes.toString('utf8').replace('</head>','<link rel="stylesheet" href="/workspace-theme.css?v=1"></head>');res.writeHead(200,{'content-type':MIME[path.extname(pathname)],'cache-control':'no-store'});return res.end(bytes)}catch{res.writeHead(404);return res.end('Script reader not installed')}}
+  if(['/dice-lab.html','/dice-controls.js'].includes(pathname)){try{const bytes=fs.readFileSync(path.join(DICE_ROOT,'public',pathname==='/dice-lab.html'?'index.html':'controls.js'));res.writeHead(200,{'content-type':pathname.endsWith('.js')?'application/javascript; charset=utf-8':'text/html; charset=utf-8','cache-control':'no-store'});return res.end(pathname.endsWith('.html')?bytes.toString('utf8').replace('</head>','<link rel="stylesheet" href="/workspace-theme.css?v=1"></head>'):bytes)}catch{res.writeHead(404);return res.end('Dice plugin not installed')}}
+  const rel = pathname === '/' ? '/index.html' : ['/computer-lab.html','/bili-lab.html','/chat-lab.html','/memory-lab.html','/diary-lab.html','/system-lab.html'].includes(pathname)?'/workspace.html':pathname
   const file = path.join(PUBLIC, path.normalize(rel).replace(/^(\.\.[/\\])+/, ''))
   if (!file.startsWith(PUBLIC) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
@@ -880,6 +887,9 @@ const server = http.createServer(async (req, res) => {
   }
   if(key==='GET /api/voice/lab/audio'){
     try{const bytes=voiceLab.readAudio(url.searchParams.get('id'),url.searchParams.get('raw')==='1');res.writeHead(200,{'content-type':'audio/wav','cache-control':'no-store','x-content-type-options':'nosniff'});return res.end(bytes)}catch{return json(res,404,{error:'检测音频不存在或已过期'})}
+  }
+  if(key==='GET /api/dice/script-download'){
+    try{const d=await downloadScript(cfg(),{group:url.searchParams.get('group'),id:url.searchParams.get('id')});const stream=fs.createReadStream(d.file);stream.on('error',()=>res.destroy());res.writeHead(200,{'content-type':'text/plain; charset=utf-8','content-disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(d.name),'cache-control':'no-store','x-content-type-options':'nosniff'});stream.pipe(res)}catch(e){json(res,400,{error:e.message})}return
   }
   if(key==='GET /api/diary/download'){
     try{const r=diaryService.read(url.searchParams.get('file'));res.writeHead(200,{'content-type':'text/plain; charset=utf-8','content-disposition':`attachment; filename*=UTF-8''${encodeURIComponent(r.filename)}`,'cache-control':'no-store'});res.end(r.content)}catch{json(res,404,{error:'日记文件不存在或名称无效'})}

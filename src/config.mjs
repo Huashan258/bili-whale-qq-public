@@ -114,6 +114,7 @@ export function buildConfig(raw) {
     chat: { ...(raw.chat ?? {}) },
     vision: { enabled:true, maxImages:3, detail:'auto', ...(raw.vision ?? {}) },
     diary: { ...(raw.diary ?? {}) },
+    computer: { ...(raw.computer ?? {}) },
     biliInbox: { ...(raw.biliInbox ?? {}) },
     share: { ...(raw.share ?? {}) },
     /** 刷B站（从 dsh-bili-scroll 移植过来的那一轮）。默认值在 scroll-duty.mjs 的 DEFAULTS 里兜底。 */

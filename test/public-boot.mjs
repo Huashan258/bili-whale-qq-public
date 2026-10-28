@@ -15,6 +15,9 @@ try{
   assert.ok(ready,'Clean checkout WebUI starts with example fallback')
   const icon=await fetch(base+'/assets/whale/portrait.svg');assert.equal(icon.status,200);assert.match(icon.headers.get('content-type'),/svg/)
   const response=await fetch(base+'/api/settings');assert.equal(response.status,200);const settings=await response.json();assert.deepEqual(settings.values['chat.admins'],[]);assert.equal(settings.values['chat.voice.instruction'],'')
+  assert.equal(settings.values['computer.enabled'],false);assert.equal(settings.values['computer.groupResults'],false);assert.equal(settings.values['computer.allowActions'],false);assert.deepEqual(settings.values['computer.fileRoots'],[]);assert.equal(settings.values['scroll.tagCommentEnabled'],false)
+  for(const route of ['/computer-lab.html','/bili-lab.html','/chat-lab.html','/memory-lab.html','/diary-lab.html','/system-lab.html','/script-reader.html','/script-reader.js','/script-reader.css']){const r=await fetch(base+route);assert.equal(r.status,200,route);await r.body.cancel()}
+  const library=await(await fetch(base+'/api/dice/script-library')).json();assert.deepEqual(library.groups,[]);assert.deepEqual(library.sessions,[])
   assert.equal(fs.existsSync(path.join(root,'config.json')),false)
   console.log('公开版启动通过：无真实配置、仅界面模式、首页/SVG/设置API、空管理员及语气、隔离数据目录。')
 }finally{child.kill();await Promise.race([exited,pause(3000)]);fs.rmSync(dir,{recursive:true,force:true})}

@@ -37,6 +37,6 @@
     notice='';busy=true;button.disabled=true;download.hidden=true;message.textContent='正在创建今日日记任务…'
     try{render(await request('POST'))}catch(e){busy=false;button.disabled=false;notice=e.message;message.textContent=e.message}finally{creating=false}
   }
-  setInterval(()=>{if(busy||!document.hidden&&!$('#view-overview').hidden)refresh()},3000)
+  setInterval(()=>{if(busy||!document.hidden&&!($('#lab-diary')??$('#view-overview'))?.hidden)refresh()},3000)
   refresh()
 })()

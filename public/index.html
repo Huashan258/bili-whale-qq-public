@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/settings.css">
 <link rel="stylesheet" href="/ocean.css?v=2">
 <link rel="stylesheet" href="/stickers.css">
+<link rel="stylesheet" href="/workspace-theme.css?v=1">
 <link rel="icon" href="/assets/whale/portrait.svg">
 </head>
 <body>
@@ -48,7 +49,8 @@
 
 <main id="view-overview" class="overview-view">
   <div class="overview-shell">
-    <div class="overview-top"><div><p class="eyebrow">YOUR LITTLE OCEAN</p><h1>今天也，慢慢来。</h1><p class="page-subtitle">看看鲸鱼助手的工作状态，留一点时间给好内容。</p></div><button class="btn" id="overview-refresh">↻ 刷新状态</button></div>
+    <div class="overview-top"><div><p class="eyebrow">WHALE / CONTROL ROOM</p><h1>青娥鱼的工作空间</h1><p class="page-subtitle">从这里进入工作台，查看状态，安排今天的相遇。</p></div><button class="btn" id="overview-refresh">↻ 刷新状态</button></div>
+<section class="workspace-hub" aria-label="全部工作台"><a class="workspace-tile" href="/computer-lab.html"><span class="tile-id">LOCAL / CONTROL</span><strong>电脑工作台</strong><p>Maa状态、系统资源与文件查询</p><span class="tile-open" aria-hidden="true">↗</span></a><a class="workspace-tile" href="/bili-lab.html"><span class="tile-id">01 / EXPLORE</span><strong>B站工作台</strong><p>观看、标签评论与私信分享</p><span class="tile-open" aria-hidden="true">↗</span></a><a class="workspace-tile" href="/chat-lab.html"><span class="tile-id">02 / CONVERSATION</span><strong>群聊工作台</strong><p>回复概率、限额与群聊行为</p><span class="tile-open" aria-hidden="true">↗</span></a><a class="workspace-tile" href="/memory-lab.html"><span class="tile-id">03 / IDENTITY</span><strong>人设与知识</strong><p>人设正文、典籍与长期记忆</p><span class="tile-open" aria-hidden="true">↗</span></a><a class="workspace-tile" href="/diary-lab.html"><span class="tile-id">04 / JOURNAL</span><strong>日记工作台</strong><p>手动生成、自动补写与专栏</p><span class="tile-open" aria-hidden="true">↗</span></a><a class="workspace-tile" href="/voice-lab.html"><span class="tile-id">05 / VOICE</span><strong>语音工作台</strong><p>音色训练、调参与试听</p><span class="tile-open" aria-hidden="true">↗</span></a><a class="workspace-tile" href="/dice-lab.html"><span class="tile-id">06 / STORY</span><strong>骰子工作台</strong><p>KP、人物、NPC与剧本记忆</p><span class="tile-open" aria-hidden="true">↗</span></a><a class="workspace-tile" href="/system-lab.html"><span class="tile-id">07 / CONNECTION</span><strong>连接与模型</strong><p>DSH、模型与图片识别</p><span class="tile-open" aria-hidden="true">↗</span></a><a class="workspace-tile" href="/#review"><span class="tile-id">08 / VIDEO</span><strong>视频与草稿</strong><p>手动采集素材，编写与检查草稿</p><span class="tile-open" aria-hidden="true">↗</span></a></section>
     <section class="ocean-hero" aria-label="鲸鱼助手工作空间">
       <div class="hero-copy"><span class="hero-tag"><span class="live-pip"></span> 温和模式 · 始终生效</span><h2>好内容，<br>值得慢慢遇见<span>。</span></h2><p>看一点视频，聊一点有趣的事。<br>我会控制好节奏，也把喜欢的分享给你。</p><div class="hero-actions"><button class="btn primary" data-go="review">开始整理视频 <span>↗</span></button><button class="btn hero-secondary" data-go="chat">查看群聊</button></div><div class="hero-foot">10 个视频 / 小时 <i>·</i> 1 个分享 / 小时 <i>·</i> 5 分钟巡检</div></div>
       <div class="hero-art"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><span class="art-spark spark-one">✧</span><span class="art-spark spark-two">✧</span><img src="/assets/whale/portrait.svg" alt="蓝发、蓝白女仆装的社区鲸鱼助手形象"><div class="art-note">鲸鱼助手在这里 <span>♡</span></div></div>
@@ -61,21 +63,10 @@
       <article class="ocean-card metric-card"><div class="metric-label">本小时分享 <span class="metric-icon">↗</span></div><strong><span id="overview-shares">—</span><small> / 1</small></strong><progress id="share-progress" max="1" value="0" aria-label="本小时分享额度"></progress><p id="share-next">每个小时，分享一份喜欢</p></article>
     </section>
     <div class="overview-columns">
-      <section class="ocean-card automation-card"><div class="section-heading"><div><span class="eyebrow">GENTLE AUTOMATION</span><h2>按自己的节奏</h2></div><span class="pill" id="overview-mode">只读状态</span></div><div id="overview-cooldown" class="cooldown-note" hidden></div><div class="automation-row"><div><h3>自动发现与分享</h3><p id="overview-delivery">读取分享设置…</p></div><button class="btn" id="overview-scroll-toggle" disabled>读取中</button></div><div class="automation-row"><div><h3>评论回复巡检</h3><p id="overview-patrol">每 5 分钟分批检查，已知评论直接读楼中楼</p></div><button class="btn ghost" data-go="settings">调整设置 ↗</button></div><div class="automation-summary"><span><b id="overview-tracked">—</b> 条视频已关注</span><span><b id="overview-replied">—</b> 个楼层已回复</span><span><b id="overview-requests">—</b> / 120 次请求</span></div></section>
+      <section class="ocean-card automation-card"><div class="section-heading"><div><span class="eyebrow">GENTLE AUTOMATION</span><h2>按自己的节奏</h2></div><span class="pill" id="overview-mode">只读状态</span></div><div id="overview-cooldown" class="cooldown-note" hidden></div><div class="automation-row"><div><h3>自动发现与分享</h3><p id="overview-delivery">读取分享设置…</p></div><button class="btn" id="overview-scroll-toggle" disabled>读取中</button></div><div class="automation-row"><div><h3>评论回复巡检</h3><p id="overview-patrol">每 5 分钟分批检查，已知评论直接读楼中楼</p></div><button class="btn ghost" onclick="location.href='/bili-lab.html'">调整设置 ↗</button></div><div class="automation-summary"><span><b id="overview-tracked">—</b> 条视频已关注</span><span><b id="overview-replied">—</b> 个楼层已回复</span><span><b id="overview-requests">—</b> / 120 次请求</span></div></section>
       <section class="ocean-card attention-card"><div class="section-heading"><div><span class="eyebrow">A LITTLE CHECK-IN</span><h2>需要留意</h2></div><span class="tiny-label" id="overview-updated">本机状态</span></div><div id="overview-issues"><p class="muted">正在整理运行状态…</p></div></section>
     </div>
-    <section class="ocean-card diary-card" aria-labelledby="diary-heading">
-      <div class="section-heading"><div><span class="eyebrow">DEAR DIARY</span><h2 id="diary-heading">把今天，写成一篇日记</h2></div><button class="btn primary" id="diary-generate">✎ 生成今日日记</button></div>
-      <p>以青娥鱼「本仙」的口吻，回顾北京时间今天已保存的 B站与QQ群记录，写成以感怀为主、可引用古文的文言日记；当天事件可略去，不列视频链接或流水账。标题与正文合计最多3000字（含标点），不设最低字数。保存到项目 words 文件夹；使用已配置的模型，会消耗 token。</p>
-      <p class="muted">只整理实际留存的记录，不补拉B站、不包含QQ私聊；未保存的信息会标明缺口。生成期间可切换页面，刷新后仍可查看进度。</p>
-      <p id="diary-auto-status" class="muted">正在读取自动日记设置…</p>
-      <p id="diary-publish-status" class="muted" role="status">正在读取专栏发布状态…</p>
-      <a id="diary-collection-link" class="btn ghost sm" hidden target="_blank" rel="noopener noreferrer">查看日记文集</a>
-      <ul id="diary-publish-list"></ul>
-      <p id="diary-status" role="status" aria-live="polite">正在读取日记状态…</p>
-      <progress id="diary-progress" hidden aria-label="日记生成进度"></progress>
-      <a id="diary-download" class="btn ghost" hidden>下载日记 TXT</a>
-    </section>
+
     <section class="ocean-card activity-card"><div class="section-heading"><div><span class="eyebrow">RECENT MOMENTS</span><h2>最近发生的事</h2></div><button class="btn ghost sm" data-go="settings">完整运行记录 ↗</button></div><ol id="overview-activity" class="activity-list"><li class="muted">暂时没有运行记录</li></ol></section>
     <footer class="ocean-footer"><span>鲸屿 · 你的本地鲸鱼助手工作空间</span><a href="/assets/whale/credits.html" target="_blank" rel="noopener">角色素材与致谢 ↗</a></footer>
   </div>
@@ -603,7 +594,7 @@
 <script src="/app.js?v=21"></script>
 <script type="module" src="/settings.js"></script>
 <script type="module" src="/overview.js"></script>
-<script src="/diary.js"></script>
+
 <script src="/stickers.js"></script>
 <script src="/voice-preview.js"></script>
 </body>

@@ -2,7 +2,7 @@
  * 采集层：把一条视频变成"可读的文字素材"。
  *
  * 温和模式只读视频元信息/简介与官方字幕，按全局队列串行请求。
- * 不拉全量弹幕、标签、热评，不启动额外的外部采集器。
+ * 不拉全量弹幕或热评，不启动额外外部采集器。仅开启标签评论时，额外读取一次视频标签。
  *
  * 两个最容易踩的坑，这里都处理了：
  *  1) 字幕接口必须带登录 cookie + WBI 签名，否则 subtitle_url 缺 auth_key，CDN 403
@@ -99,9 +99,11 @@ export async function collect(bvid, cfg, opts = {}) {
   if (opts.isActive && !opts.isActive()) throw Error('视频采集已停止')
   await biliPolicy.claim('watch', bvid, {commandRead:opts.commandRead===true})
   const video = await fetchView(bvid, cfg, opts)
-  // 温和模式只读取简介与官方字幕，不额外拉标签、全量弹幕和热评，也不启动外部采集器。
+  // 温和模式读取简介与官方字幕；仅标签评论开关开启时补读一次标签。
   const subtitle = await fetchSubtitle(video, cfg, opts)
-  const tags = [], danmaku = [], comments = [], whale = null
+  let tags=[],tagNote=''
+  if(opts.readTags===true){try{const j=await getJSON(`https://api.bilibili.com/x/tag/archive/tags?bvid=${encodeURIComponent(bvid)}`,cfg.cookieHeader,`https://www.bilibili.com/video/${bvid}/`,opts);if(j?.code!==0||!Array.isArray(j.data))throw Error('未取得视频标签');tags=j.data.map(t=>String(t.tag_name??'').trim()).filter(Boolean)}catch(e){if(e.biliPolicy||e.commentRisk)throw e;tagNote='标签读取未完成，不据标题猜测标签'}}
+  const danmaku = [], comments = [], whale = null
 
   // 弹幕按内容聚合：重复出现的才是"热区"，比原序更有信息量
   const freq = new Map()
@@ -111,6 +113,7 @@ export async function collect(bvid, cfg, opts = {}) {
   return {
     video,
     tags,
+    tagNote,
     subtitle,
     danmaku: { total: danmaku.length, hot: hotDanmaku.slice(0, 60), sample: danmaku.slice(0, 200) },
     comments,

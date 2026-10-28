@@ -3,6 +3,7 @@ export const sections = {
   runtime: 'DSH 运行', llm: '模型与采集', qq: 'QQ 连接', chat: '人设与群聊',
   memory: '记忆与长文', shield: '防护与用量', scroll: '刷 B 站', share: '分享与评论巡检',
   bili: 'B 站与主人 UP', guard: '发布闸门', whale: '深读工具',
+  computer: '本机查询与操作',
 }
 export const fields = []
 // Shared by browser step validation and server integer validation.
@@ -13,6 +14,16 @@ const n = (s,p,l,v,lo=0,hi=100000,h='') => add(s,p,l,'number',v,lo,hi,h)
 const t = (s,p,l,v='',h='') => add(s,p,l,'text',v,undefined,undefined,h)
 const a = (s,p,l,v=[],h='') => add(s,p,l,'list',v,undefined,undefined,h)
 const long = (s,p,l,h='') => add(s,p,l,'long','',undefined,undefined,h)
+b('computer','computer.enabled','允许QQ管理员查询本机',false,'仅机器人管理员可使用程序查询、系统查询、文件读取和程序截图；内容默认私聊返回，不发给模型。服务器部署后查询的是服务器自身。')
+b('computer','computer.groupResults','群内程序查询与截图直接回复原群',false,'开启后，管理员在白名单群的程序/系统查询、程序截图和Maa操作结果直接发到原群；文件内容和文件列表仍私聊。私聊请求仍私聊，普通群友没有调用权限。')
+b('computer','computer.allowActions','允许明确指令操作Maa按钮',false,'仅处理“程序操作：Maa 开始/停止/勾选自动肉鸽/取消自动肉鸽”。读取控件后单次操作；弹窗、按钮不可用或不唯一时停止。不执行任意命令或坐标盲点。')
+t('computer','computer.maaDir','Maa安装目录','','填写含MAA.exe的目录；核对进程路径，防止误操作同名程序。')
+a('computer','computer.fileRoots','允许读取文件的目录',[],'每行一个绝对目录。只读该目录及子目录的文本；拒绝越界、符号链接越界和凭据文件。不填时不开放文件读取。')
+a('computer','computer.screenshotProcesses','允许截图的进程名称',['MAA'],'每行一个进程名，不含.exe。仅截对应窗口，不截整个桌面。窗口最小化或截图空白时提示失败。')
+b('scroll','scroll.tagCommentEnabled','观看带指定标签的视频后自主评论',false,'只依据真实视频标签触发；不区分大小写，标签包含任一选词即可。评论沿用账号日额度与B站风控冷却，同一视频不重发。')
+a('scroll','scroll.tagCommentKeywords','自动评论的视频标签',['DeepSeek'],'例如DeepSeek，自动覆盖deepseek。只匹配视频标签，标题或简介不触发。清空表示不匹配。')
+n('scroll','scroll.tagCommentMaxPerHour','标签评论每小时上限',1,1,10,'默认每小时最多1条；观看仍限每小时10个，分享仍限每小时1个。')
+long('scroll','scroll.tagCommentPrompt','标签评论表达偏好','补充评论风格；不会改变标签条件、额度或只根据已读素材发言的规则。')
 add('chat','chat.groupSpeakChances','各群独立回复概率','group-probabilities',{},undefined,undefined,'每行“群号=概率”，例如123456=0.6。0不主动、1全部普通消息都回复；删除某群那一行即恢复全局概率。只影响非必回模式的普通群消息，@、令咒及其他原有定向规则不变；不影响语音或复读概率。')
 const secret = (s,p,l) => add(s,p,l,'secret','',undefined,undefined,'留空保留原凭据；支持 env:变量名。')
 b('runtime','runtime.enabled','DSH 插件启用',false,'由 DSH 宿主管理；独立 Agent 不读取此开关。')

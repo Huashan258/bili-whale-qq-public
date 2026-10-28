@@ -20,6 +20,9 @@ export function validatePatch(patch) {
     const f = validPaths.get(key)
     if (!f) throw new Error(`未知设置：${key}`)
     const fail = () => { throw new Error(`${f.label}：格式或范围不正确`) }
+    if(key==='computer.maaDir'&&(typeof v!=='string'||v&&!path.isAbsolute(v)))fail()
+    if(key==='computer.fileRoots'&&(!Array.isArray(v)||v.some(p=>typeof p!=='string'||!path.isAbsolute(p))))fail()
+    if(key==='computer.screenshotProcesses'&&(!Array.isArray(v)||v.some(p=>typeof p!=='string'||!/^[\w.-]{1,80}$/.test(p)||p.toLowerCase().endsWith('.exe'))))fail()
     if(key==='chat.voice.instruction'&&(typeof v!=='string'||[...v].reduce((n,c)=>n+(/\p{Script=Han}/u.test(c)?2:1),0)>100))fail()
     if (f.type === 'number') {
       if (typeof v !== 'number' || !Number.isFinite(v) || v < f.min || v > f.max) fail()
